@@ -1,13 +1,19 @@
 import { useEffect, useState, useCallback } from 'react'
 
-// Capacitor는 네이티브 앱에서만 동작 — 웹 브라우저에서는 무시
+// Capacitor는 네이티브 앱에서만 동작 — 웹 브라우저에서는 null 유지
 let CallPlugin = null
-try {
-  // 동적 import: 웹에서 빌드 오류 방지
-  const { registerPlugin } = await import('@capacitor/core')
-  CallPlugin = registerPlugin('CallPlugin')
-} catch {
-  // 웹 환경이거나 Capacitor 미설치 시 무시
+
+async function getCallPlugin() {
+  if (CallPlugin) return CallPlugin
+
+  try {
+    const { registerPlugin } = await import('@capacitor/core')
+    CallPlugin = registerPlugin('CallPlugin')
+    return CallPlugin
+  } catch (error) {
+    console.warn('CallPlugin 로드 실패:', error)
+    return null
+  }
 }
 
 /**
@@ -25,62 +31,118 @@ try {
 export function useCallDetect() {
   const [lastCall, setLastCall] = useState(null)
   const [permitted, setPermitted] = useState(false)
-  const isNative = Boolean(CallPlugin)
+  const [isNative, setIsNative] = useState(false)
 
-  // 권한 요청
   const requestPermission = useCallback(async () => {
-    if (!CallPlugin) return false
+    const plugin = await getCallPlugin()
+
+    if (!plugin) {
+      setIsNative(false)
+      setPermitted(false)
+      return false
+    }
+
+    setIsNative(true)
+
     try {
-      const result = await CallPlugin.requestPermissions()
-      const granted = Object.values(result).every(v => v === 'granted')
+      const result = await plugin.requestPermissions()
+      const granted = Object.values(result).every(value => value === 'granted')
       setPermitted(granted)
       return granted
-    } catch (e) {
-      console.warn('권한 요청 실패:', e)
+    } catch (error) {
+      console.warn('권한 요청 실패:', error)
+      setPermitted(false)
       return false
     }
   }, [])
 
   useEffect(() => {
-    if (!CallPlugin) return
-
-    let cleanup = () => {}
+    let cancelled = false
+    let removeListener = null
 
     const init = async () => {
-      // 권한 확인
-      try {
-        const result = await CallPlugin.checkPermissions()
-        const granted = Object.values(result).every(v => v === 'granted')
-        setPermitted(granted)
-        if (!granted) return
-      } catch {
+      const plugin = await getCallPlugin()
+
+      if (!plugin) {
+        if (!cancelled) {
+          setIsNative(false)
+          setPermitted(false)
+        }
         return
       }
 
-      // 통화 감지 시작
-      await CallPlugin.startListening()
+      if (!cancelled) {
+        setIsNative(true)
+      }
 
-      // 통화 종료 이벤트 구독
-      const { PluginListenerHandle } = await import('@capacitor/core')
-      const handle = await CallPlugin.addListener('callEnded', (data) => {
-        setLastCall({
-          phone: data.phone || '',
-          duration: data.duration || 0,
-          endedAt: data.endedAt || Date.now(),
+      try {
+        const result = await plugin.checkPermissions()
+        const granted = Object.values(result).every(value => value === 'granted')
+
+        if (cancelled) return
+
+        setPermitted(granted)
+
+        if (!granted) return
+      } catch (error) {
+        console.warn('권한 확인 실패:', error)
+        if (!cancelled) {
+          setPermitted(false)
+        }
+        return
+      }
+
+      try {
+        await plugin.startListening()
+
+        const handle = await plugin.addListener('callEnded', data => {
+          if (cancelled) return
+
+          setLastCall({
+            phone: data?.phone || '',
+            duration: data?.duration || 0,
+            endedAt: data?.endedAt || Date.now(),
+          })
         })
-      })
 
-      cleanup = () => {
-        handle.remove()
-        CallPlugin.stopListening()
+        removeListener = async () => {
+          try {
+            await handle.remove()
+          } catch (error) {
+            console.warn('리스너 제거 실패:', error)
+          }
+
+          try {
+            await plugin.stopListening()
+          } catch (error) {
+            console.warn('통화 감지 중지 실패:', error)
+          }
+        }
+      } catch (error) {
+        console.warn('통화 감지 초기화 실패:', error)
       }
     }
 
     init()
-    return () => cleanup()
-  }, [permitted])
 
-  const clearLastCall = useCallback(() => setLastCall(null), [])
+    return () => {
+      cancelled = true
 
-  return { lastCall, isNative, permitted, requestPermission, clearLastCall }
+      if (removeListener) {
+        removeListener()
+      }
+    }
+  }, [])
+
+  const clearLastCall = useCallback(() => {
+    setLastCall(null)
+  }, [])
+
+  return {
+    lastCall,
+    isNative,
+    permitted,
+    requestPermission,
+    clearLastCall,
+  }
 }
