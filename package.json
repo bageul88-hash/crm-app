@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
     "cap:sync": "npx cap sync",
     "cap:android": "npx cap open android",
-    "cap:build": "vite build && npx cap sync android"
+    "cap:build": "node node_modules/vite/bin/vite.js build && npx cap sync android"
   },
   "dependencies": {
     "react": "^18.2.0",
