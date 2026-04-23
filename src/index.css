@@ -1,0 +1,153 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #f0f0f0;
+  --surface:   #e8e8e8;
+  --border:    #d0d0d0;
+  --border2:   #b0b0b0;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --accent:    #2563eb;
+  --accent2:   #1d4ed8;
+  --green:     #16a34a;
+  --orange:    #d97706;
+  --red:       #dc2626;
+  --purple:    #7c3aed;
+  --radius:    12px;
+  --radius-sm: 8px;
+  --shadow:    0 2px 12px rgba(0,0,0,0.1);
+  --font:      'Noto Sans KR', sans-serif;
+}
+
+html { font-size: 15px; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#root {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── 스크롤바 ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── 공통 버튼 ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-ghost { background: var(--surface); color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+.btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn-danger:hover { background: rgba(240,69,69,0.1); }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-full { width: 100%; }
+
+/* ── 공통 인풋 ── */
+.input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--accent); }
+.input::placeholder { color: var(--text3); }
+textarea.input { resize: vertical; min-height: 90px; line-height: 1.6; }
+select.input { cursor: pointer; }
+
+/* ── 공통 라벨 ── */
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* ── 뱃지 ── */
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-등록  { background: rgba(52,201,126,0.15);  color: var(--green); }
+.badge-미등록 { background: rgba(245,166,35,0.15);  color: var(--orange); }
+.badge-문의만 { background: rgba(168,85,247,0.15);  color: var(--purple); }
+.badge-불가  { background: rgba(240,69,69,0.15);    color: var(--red); }
+.badge-가맹  { background: rgba(79,126,248,0.15);   color: var(--accent); }
+.badge-기타  { background: rgba(156,163,175,0.1);   color: var(--text2); }
+.badge-진단전 { background: rgba(156,163,175,0.1);  color: var(--text3); }
+.badge-예약  { background: rgba(79,126,248,0.12);   color: var(--accent); }
+.badge-문의  { background: rgba(168,85,247,0.12);   color: var(--purple); }
+
+/* ── 폼 그룹 ── */
+.form-group { margin-bottom: 16px; }
+
+/* ── 카드 ── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+/* ── 애니메이션 ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.2s ease; }
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ── 로딩 스피너 ── */
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
