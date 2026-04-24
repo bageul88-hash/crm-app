@@ -22,6 +22,11 @@ const TEMPLATES = [
   { key: 'franchise', label: '가맹 문의' },
 ]
 
+// 예약만 체크된 데이터만 문자대상 예약 탭에 표시
+const isOnlyReserved = c =>
+  c.category === '예약' &&
+  (!c.diagResult || String(c.diagResult).trim() === '')
+
 function fmtDate(val) {
   if (!val) return ''
   const str = String(val)
@@ -95,7 +100,7 @@ export default function SMSPage() {
     let list = consults
 
     if (topTab === '예약') {
-      list = list.filter(c => c.category === '예약')
+      list = list.filter(isOnlyReserved)
     } else if (topTab === '문의') {
       list = list.filter(c => c.category === '문의')
     } else if (topTab === '가맹') {
@@ -127,7 +132,7 @@ export default function SMSPage() {
     const map = {}
 
     map['전체'] = consults.length
-    map['예약'] = consults.filter(c => c.category === '예약').length
+    map['예약'] = consults.filter(isOnlyReserved).length
     map['문의'] = consults.filter(c => c.category === '문의').length
     map['가맹'] = consults.filter(c => c.category === '가맹').length
 
@@ -241,7 +246,15 @@ export default function SMSPage() {
             onChange={e => setDaysBefore(Number(e.target.value))}
             style={{ flex: 1, accentColor: 'var(--accent)' }}
           />
-          <span style={{ minWidth: 56, fontSize: 14, fontWeight: 600, color: 'var(--accent)', textAlign: 'right' }}>
+          <span
+            style={{
+              minWidth: 56,
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--accent)',
+              textAlign: 'right',
+            }}
+          >
             {daysBefore === 0 ? '전체' : `${daysBefore}일`}
           </span>
         </div>
