@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import ConsultCard from '../components/ConsultCard'
 
-// 1번째 줄 탭
 const TOP_TABS = [
   { key: '전체' },
   { key: '예약' },
@@ -11,7 +10,6 @@ const TOP_TABS = [
   { key: '가맹' },
 ]
 
-// 2번째 줄 탭
 const BOT_TABS = [
   { key: '등록', filterKey: 'diagResult', filterVal: '등록' },
   { key: '미등록', filterKey: 'diagResult', filterVal: '미등록' },
@@ -34,12 +32,14 @@ const TAB_COLOR = {
   기타: { bg: 'rgba(156,163,175,0.12)', border: 'var(--text3)', text: 'var(--text2)' },
 }
 
-const isOnlyReserved = (c) =>
+// 예약만 체크된 데이터
+// category === '예약' 이고 diagResult가 비어 있는 경우만 예약 탭에 표시
+const isOnlyReserved = c =>
   c.category === '예약' &&
   (!c.diagResult || String(c.diagResult).trim() === '')
 
 export default function ListPage() {
-  const { consults, loading, error } = useApp()
+  const { consults, loading, error, remove } = useApp()
   const navigate = useNavigate()
 
   const [topTab, setTopTab] = useState('전체')
@@ -54,12 +54,10 @@ export default function ListPage() {
     }
   }, [topTab])
 
-  // 상단 탭 필터
   const topFiltered = useMemo(() => {
     let list = consults
 
     if (topTab === '예약') {
-      // 예약만 체크된 데이터만 표시
       list = list.filter(isOnlyReserved)
     } else if (topTab === '문의') {
       list = list.filter(c => c.category === '문의')
@@ -70,7 +68,6 @@ export default function ListPage() {
     return list
   }, [consults, topTab])
 
-  // 카운트
   const counts = useMemo(() => {
     const map = {}
 
@@ -86,11 +83,9 @@ export default function ListPage() {
     return map
   }, [consults])
 
-  // 최종 목록
   const filtered = useMemo(() => {
     let list = topFiltered
 
-    // 등록/미등록/문의만/불가/체결/기타는 전체 탭에서만 적용
     if (topTab === '전체' && botTab) {
       const currentBot = BOT_TABS.find(t => t.key === botTab)
       if (currentBot?.filterKey) {
@@ -110,6 +105,16 @@ export default function ListPage() {
 
     return [...list].sort((a, b) => b.id - a.id)
   }, [topFiltered, topTab, botTab, search])
+
+  const handleDelete = async id => {
+    if (!window.confirm('정말 삭제하시겠습니까?')) return
+
+    try {
+      await remove(id)
+    } catch (e) {
+      alert(`삭제 중 오류가 발생했습니다.\n${e.message || e}`)
+    }
+  }
 
   const TabRow = ({ tabs, current, onChange }) => (
     <div
@@ -157,7 +162,6 @@ export default function ListPage() {
 
   return (
     <div>
-      {/* 검색창 */}
       <div style={{ padding: '14px 16px 0' }}>
         <div style={{ position: 'relative' }}>
           <span
@@ -172,6 +176,7 @@ export default function ListPage() {
           >
             🔍
           </span>
+
           <input
             className="input"
             style={{ paddingLeft: 36 }}
@@ -182,19 +187,16 @@ export default function ListPage() {
         </div>
       </div>
 
-      {/* 1번째 줄 */}
       <div style={{ padding: '12px 16px 0' }}>
         <TabRow tabs={TOP_TABS} current={topTab} onChange={setTopTab} />
       </div>
 
-      {/* 2번째 줄: 전체 탭에서만 표시 */}
       {topTab === '전체' && (
         <div style={{ padding: '6px 16px 0' }}>
           <TabRow tabs={BOT_TABS} current={botTab} onChange={setBotTab} />
         </div>
       )}
 
-      {/* 목록 */}
       <div
         style={{
           padding: '12px 16px',
@@ -241,6 +243,7 @@ export default function ListPage() {
             consult={c}
             onClick={() => navigate(`/detail/${c.id}`)}
             onEdit={() => navigate(`/input/${c.id}`)}
+            onDelete={() => handleDelete(c.id)}
           />
         ))}
       </div>
