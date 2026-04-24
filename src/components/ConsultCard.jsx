@@ -20,7 +20,7 @@ const RESULT_COLOR = {
   기타: 'var(--text2)',
 }
 
-export default function ConsultCard({ consult: c, onClick, onEdit }) {
+export default function ConsultCard({ consult: c, onClick, onEdit, onDelete }) {
   return (
     <div
       className="card fade-in"
@@ -37,6 +37,7 @@ export default function ConsultCard({ consult: c, onClick, onEdit }) {
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 3 }}>
             {c.name || '(이름없음)'}
           </div>
+
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>
             {c.phone}
             {c.age ? ` • ${c.age}` : ''}
@@ -77,16 +78,34 @@ export default function ConsultCard({ consult: c, onClick, onEdit }) {
             </span>
           )}
 
-          <button
-            className="btn btn-ghost btn-sm"
-            style={{ fontSize: 12, padding: '4px 10px' }}
-            onClick={e => {
-              e.stopPropagation()
-              onEdit()
-            }}
-          >
-            수정
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 12, padding: '4px 10px' }}
+              onClick={e => {
+                e.stopPropagation()
+                onEdit()
+              }}
+            >
+              수정
+            </button>
+
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{
+                fontSize: 12,
+                padding: '4px 10px',
+                color: 'var(--red)',
+                borderColor: 'rgba(240,69,69,0.35)',
+              }}
+              onClick={e => {
+                e.stopPropagation()
+                onDelete?.()
+              }}
+            >
+              삭제
+            </button>
+          </div>
         </div>
       </div>
 
