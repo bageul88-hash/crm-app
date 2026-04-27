@@ -35,7 +35,7 @@ export const OPTIONS = {
     '오후 3:00', '오후 3:30', '오후 4:00', '오후 4:30',
     '오후 5:00', '오후 5:30', '오후 6:00',
   ],
-  diagResult: ['등록', '미등록', '문의만', '불가', '체결', '기타'],
+  diagResult: ['등록', '미등록', '문의만', '불가', '체결', '펑크'],
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
 }
 
@@ -91,7 +91,14 @@ export async function deleteConsult(id) {
   })
 
   if (!res.ok) throw new Error('삭제에 실패했습니다')
-  return res.json()
+
+  const json = await res.json()
+
+  if (json.error) {
+    throw new Error(json.error)
+  }
+
+  return json
 }
 
 function rowToObject(row) {

@@ -15,7 +15,7 @@ const RESULT_COLOR = {
   문의만: 'var(--purple)',
   불가: 'var(--red)',
   체결: 'var(--accent)',
-  기타: 'var(--text2)',
+  펑크: 'var(--text2)',
 }
 
 export default function ConsultCard({ consult: c, onClick, onEdit, onDelete }) {

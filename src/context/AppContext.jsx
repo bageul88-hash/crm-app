@@ -32,10 +32,10 @@ export function AppProvider({ children }) {
     await load()
   }, [load])
 
-  const remove = useCallback(async id => {
-    await deleteConsult(id)
-    setConsults(prev => prev.filter(c => c.id !== id))
-  }, [])
+const remove = useCallback(async id => {
+  await deleteConsult(id)
+  await load()
+}, [load])
 
   // 중복 상담 자동 제거
   // 기준: 전화번호 + 이름이 같은 경우, 최신 id 1개만 남기고 나머지 삭제
