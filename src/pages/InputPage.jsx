@@ -173,6 +173,20 @@ export default function InputPage() {
         setMsg('✅ 수정되었습니다')
         setTimeout(() => navigate('/'), 800)
       } else {
+        const phoneKey = String(payload.phone || '').replace(/\D/g, '')
+        const nameKey = String(payload.name || '').trim()
+
+        const exists = consults.some(c =>
+          String(c.phone || '').replace(/\D/g, '') === phoneKey &&
+          String(c.name || '').trim() === nameKey
+        )
+
+        if (exists) {
+          setMsg('❌ 이미 등록된 상담입니다. 기존 상담을 수정해주세요.')
+          setSaving(false)
+          return
+        }
+
         await add(payload)
         setSmsConsult(payload)
         reset()

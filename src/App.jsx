@@ -6,13 +6,15 @@ import InputPage from './pages/InputPage'
 import SchedulePage from './pages/SchedulePage'
 import SMSPage from './pages/SMSPage'
 import DetailPage from './pages/DetailPage'
+import AttendancePage from './pages/AttendancePage'
 import CallBanner from './components/CallBanner'
 
 const NAV = [
-  { path: '/',         icon: '≡',  label: '상담목록' },
-  { path: '/input',    icon: '+',  label: '상담등록' },
-  { path: '/schedule', icon: '◷',  label: '예약일' },
-  { path: '/sms',      icon: '✉',  label: '문자대상' },
+  { path: '/',           icon: '≡',  label: '상담목록' },
+  { path: '/input',      icon: '+',  label: '상담등록' },
+  { path: '/schedule',   icon: '◷',  label: '예약일' },
+  { path: '/sms',        icon: '✉',  label: '문자대상' },
+  { path: '/attendance', icon: '✔',  label: '출석관리' },
 ]
 
 export default function App() {
@@ -48,16 +50,17 @@ export default function App() {
       {/* 메인 */}
       <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 80 }}>
         <Routes>
-          <Route path="/"           element={<ListPage />} />
-          <Route path="/input"      element={<InputPage />} />
-          <Route path="/input/:id"  element={<InputPage />} />
-          <Route path="/schedule"   element={<SchedulePage />} />
-          <Route path="/sms"        element={<SMSPage />} />
-          <Route path="/detail/:id" element={<DetailPage />} />
+          <Route path="/"              element={<ListPage />} />
+          <Route path="/input"         element={<InputPage />} />
+          <Route path="/input/:id"     element={<InputPage />} />
+          <Route path="/schedule"      element={<SchedulePage />} />
+          <Route path="/sms"           element={<SMSPage />} />
+          <Route path="/detail/:id"    element={<DetailPage />} />
+          <Route path="/attendance"    element={<AttendancePage />} />
         </Routes>
       </main>
 
-      {/* 통화 종료 배너 (네이티브 앱에서만 표시) */}
+      {/* 통화 종료 배너 */}
       <CallBanner />
 
       {/* 하단 네비게이션 */}

@@ -11,6 +11,7 @@ export function AppProvider({ children }) {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+
     try {
       const data = await fetchConsults()
       setConsults(data)
@@ -21,23 +22,66 @@ export function AppProvider({ children }) {
     }
   }, [])
 
-  const add = useCallback(async (data) => {
+  const add = useCallback(async data => {
     await addConsult(data)
     await load()
   }, [load])
 
-  const update = useCallback(async (data) => {
+  const update = useCallback(async data => {
     await updateConsult(data)
     await load()
   }, [load])
 
-  const remove = useCallback(async (id) => {
+  const remove = useCallback(async id => {
     await deleteConsult(id)
     setConsults(prev => prev.filter(c => c.id !== id))
   }, [])
 
+  // 중복 상담 자동 제거
+  // 기준: 전화번호 + 이름이 같은 경우, 최신 id 1개만 남기고 나머지 삭제
+  const removeDuplicates = useCallback(async () => {
+    const seen = new Set()
+    const duplicated = []
+
+    const sorted = [...consults].sort((a, b) => Number(b.id) - Number(a.id))
+
+    for (const c of sorted) {
+      const phone = String(c.phone || '').replace(/\D/g, '').trim()
+      const name = String(c.name || '').trim()
+
+      if (!phone || !name) continue
+
+      const key = `${phone}-${name}`
+
+      if (seen.has(key)) {
+        duplicated.push(c)
+      } else {
+        seen.add(key)
+      }
+    }
+
+    for (const item of duplicated) {
+      await deleteConsult(item.id)
+    }
+
+    await load()
+
+    return duplicated.length
+  }, [consults, load])
+
   return (
-    <AppContext.Provider value={{ consults, loading, error, load, add, update, remove }}>
+    <AppContext.Provider
+      value={{
+        consults,
+        loading,
+        error,
+        load,
+        add,
+        update,
+        remove,
+        removeDuplicates,
+      }}
+    >
       {children}
     </AppContext.Provider>
   )
