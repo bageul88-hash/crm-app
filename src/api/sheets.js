@@ -39,58 +39,12 @@ export const OPTIONS = {
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
 }
 
-export async function fetchConsults() {
+async function getFromSheet() {
   const res = await fetch(`${APPS_SCRIPT_URL}?action=getAll`)
 
   if (!res.ok) {
     throw new Error('데이터를 불러오지 못했습니다')
   }
-
-  const json = await res.json()
-  const rows = json.data || json || []
-
-  return rows.map((row, i) => ({
-    id: i + 2,
-    ...rowToObject(row),
-  }))
-}
-
-export async function addConsult(data) {
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8',
-    },
-    body: JSON.stringify({ action: 'add', ...data }),
-  })
-
-  if (!res.ok) throw new Error('저장에 실패했습니다')
-  return res.json()
-}
-
-export async function updateConsult(data) {
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8',
-    },
-    body: JSON.stringify({ action: 'update', ...data }),
-  })
-
-  if (!res.ok) throw new Error('수정에 실패했습니다')
-  return res.json()
-}
-
-export async function deleteConsult(id) {
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8',
-    },
-    body: JSON.stringify({ action: 'delete', id }),
-  })
-
-  if (!res.ok) throw new Error('삭제에 실패했습니다')
 
   const json = await res.json()
 
@@ -99,6 +53,68 @@ export async function deleteConsult(id) {
   }
 
   return json
+}
+
+async function postToSheet(payload, errorMessage) {
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    throw new Error(errorMessage)
+  }
+
+  const json = await res.json()
+
+  if (json.error) {
+    throw new Error(json.error)
+  }
+
+  return json
+}
+
+export async function fetchConsults() {
+  const json = await getFromSheet()
+  const rows = json.data || []
+
+  return rows.map((row, i) => ({
+    id: i + 2,
+    ...rowToObject(row),
+  }))
+}
+
+export async function addConsult(data) {
+  return postToSheet(
+    {
+      action: 'add',
+      ...data,
+    },
+    '저장에 실패했습니다'
+  )
+}
+
+export async function updateConsult(data) {
+  return postToSheet(
+    {
+      action: 'update',
+      ...data,
+    },
+    '수정에 실패했습니다'
+  )
+}
+
+export async function deleteConsult(id) {
+  return postToSheet(
+    {
+      action: 'delete',
+      id,
+    },
+    '삭제에 실패했습니다'
+  )
 }
 
 function rowToObject(row) {
@@ -118,6 +134,11 @@ function rowToObject(row) {
       const ampm = h < 12 ? '오전' : '오후'
       const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
       val = `${ampm} ${h12}:${m}`
+    }
+
+    // 기존 시트에 남아 있는 "기타"를 앱에서는 "펑크"로 표시
+    if (key === 'diagResult' && val === '기타') {
+      val = '펑크'
     }
 
     obj[key] = val
