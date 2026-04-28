@@ -45,17 +45,23 @@ function doGet(e) {
 // POST: 추가 / 수정 / 삭제
 // ──────────────────────────────────────────────
 function doPost(e) {
-  var result
-  try {
-    var data = JSON.parse(e.postData.contents)
-    if      (data.action === 'add')    result = addRow(data)
-    else if (data.action === 'update') result = updateRow(data)
-    else if (data.action === 'delete') result = deleteRow(data.id)
-    else result = { error: 'Unknown action: ' + data.action }
-  } catch (err) {
-    result = { error: err.message }
+  const data = JSON.parse(e.postData.contents)
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("상담DB")
+
+  if (data.action === 'delete') {
+    const rows = sheet.getDataRange().getValues()
+
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const name = rows[i][5]     // 이름
+      const phone = rows[i][12]   // 전화번호
+
+      if (name === data.name && phone === data.phone) {
+        sheet.deleteRow(i + 1)
+      }
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ success: true }))
   }
-  return jsonResponse(result)
 }
 
 // ──────────────────────────────────────────────

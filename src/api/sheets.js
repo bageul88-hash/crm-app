@@ -1,6 +1,6 @@
 // ✅ Apps Script 배포 URL
 export const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycby_fo8D01dOjagXck2-zOhNwQldcrabM6qGKathR7aetZlxG4NBmqztZ84YHaYztBgs/exec'
+  'https://script.google.com/macros/s/AKfycbxxSZ2oX4pySmhiCg6HnVpguU6ZjshPmsGR0rGbl9q-CLbIvOoCeioI1IEqq-ZHsD1g/exec'
 
 // 실제 시트 열 순서
 export const FIELD_MAP = {

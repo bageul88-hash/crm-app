@@ -106,15 +106,15 @@ export default function ListPage() {
     return [...list].sort((a, b) => b.id - a.id)
   }, [topFiltered, topTab, botTab, search])
 
-  const handleDelete = async id => {
-    if (!window.confirm('정말 삭제하시겠습니까?')) return
+const handleDelete = async id => {
+  if (!window.confirm('정말 삭제하시겠습니까?')) return
 
-    try {
-      await remove(id)
-    } catch (e) {
-      alert(`삭제 중 오류가 발생했습니다.\n${e.message || e}`)
-    }
+  try {
+    await remove(id)
+  } catch (e) {
+    alert(`삭제 중 오류가 발생했습니다.\n${e.message || e}`)
   }
+}
 
   const TabRow = ({ tabs, current, onChange }) => (
     <div
@@ -244,9 +244,8 @@ export default function ListPage() {
             onClick={() => navigate(`/detail/${c.id}`)}
             onEdit={() => navigate(`/input/${c.id}`)}
             onDelete={() => handleDelete(c.id)}
-          />
+         />
         ))}
       </div>
     </div>
   )
-}

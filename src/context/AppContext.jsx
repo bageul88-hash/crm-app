@@ -16,8 +16,7 @@ export function AppProvider({ children }) {
       const data = await fetchConsults()
       setConsults(data)
     } catch (e) {
-      console.error(e)
-      setError(e.message || '데이터를 불러오지 못했습니다')
+      setError(e.message)
     } finally {
       setLoading(false)
     }
@@ -33,14 +32,13 @@ export function AppProvider({ children }) {
     await load()
   }, [load])
 
-  // 삭제 후 화면에서만 지우지 않고, 반드시 구글시트에서 다시 불러오기
-  const remove = useCallback(async id => {
-    await deleteConsult(id)
-    await load()
-  }, [load])
+const remove = useCallback(async id => {
+  await deleteConsult(id)
+  await load()
+}, [load])
 
   // 중복 상담 자동 제거
-  // 기준: 전화번호 + 이름이 같은 경우 최신 id 1개만 남김
+  // 기준: 전화번호 + 이름이 같은 경우, 최신 id 1개만 남기고 나머지 삭제
   const removeDuplicates = useCallback(async () => {
     const seen = new Set()
     const duplicated = []
