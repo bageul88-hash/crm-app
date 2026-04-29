@@ -21,10 +21,11 @@ export const FIELD_MAP = {
   savedAt: 14,
 }
 
-export const CATEGORY_TABS = ['전체', '예약', '문의', '가맹', '기타']
+// 구분 탭: 기타/펑크 대신 연결
+export const CATEGORY_TABS = ['전체', '예약', '문의', '가맹', '연결']
 
 export const OPTIONS = {
-  category: ['예약', '문의', '가맹', '기타'],
+  category: ['예약', '문의', '가맹', '연결'],
   age: Array.from({ length: 75 }, (_, i) => `${i + 6}세`),
   gender: ['남', '여'],
   diagTime: [
@@ -35,8 +36,55 @@ export const OPTIONS = {
     '오후 3:00', '오후 3:30', '오후 4:00', '오후 4:30',
     '오후 5:00', '오후 5:30', '오후 6:00',
   ],
-  diagResult: ['등록', '미등록', '문의만', '불가', '체결', '펑크'],
+  diagResult: ['등록', '미등록', '연결', '불가', '체결', '펑크'],
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
+}
+
+function cleanPhone(value) {
+  let phone = String(value || '')
+    .replace(/^'/, '')
+    .replace(/[^0-9]/g, '')
+
+  if (phone.length === 10 && phone[0] !== '0') {
+    phone = '0' + phone
+  }
+
+  return phone
+}
+
+function phoneForSheet(value) {
+  const phone = cleanPhone(value)
+  return phone ? `'${phone}` : ''
+}
+
+function normalizeCategory(value) {
+  if (value === '기타') return '연결'
+  if (value === '펑크') return '연결'
+  return value || ''
+}
+
+function normalizeDiagResult(value) {
+  if (value === '문의만') return '연결'
+  if (value === '기타') return '펑크'
+  return value || ''
+}
+
+function normalizePayload(payload) {
+  const next = { ...payload }
+
+  if ('phone' in next) {
+    next.phone = phoneForSheet(next.phone)
+  }
+
+  if ('category' in next) {
+    next.category = normalizeCategory(next.category)
+  }
+
+  if ('diagResult' in next) {
+    next.diagResult = normalizeDiagResult(next.diagResult)
+  }
+
+  return next
 }
 
 async function getFromSheet() {
@@ -61,7 +109,7 @@ async function postToSheet(payload, errorMessage) {
     headers: {
       'Content-Type': 'text/plain;charset=utf-8',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(normalizePayload(payload)),
   })
 
   if (!res.ok) {
@@ -136,9 +184,16 @@ function rowToObject(row) {
       val = `${ampm} ${h12}:${m}`
     }
 
-    // 기존 시트에 남아 있는 "기타"를 앱에서는 "펑크"로 표시
-    if (key === 'diagResult' && val === '기타') {
-      val = '펑크'
+    if (key === 'phone') {
+      val = cleanPhone(val)
+    }
+
+    if (key === 'category') {
+      val = normalizeCategory(val)
+    }
+
+    if (key === 'diagResult') {
+      val = normalizeDiagResult(val)
     }
 
     obj[key] = val
