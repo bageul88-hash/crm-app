@@ -32,8 +32,6 @@ const TAB_COLOR = {
   기타: { bg: 'rgba(156,163,175,0.12)', border: 'var(--text3)', text: 'var(--text2)' },
 }
 
-// 예약만 체크된 데이터
-// category === '예약' 이고 diagResult가 비어 있는 경우만 예약 탭에 표시
 const isOnlyReserved = c =>
   c.category === '예약' &&
   (!c.diagResult || String(c.diagResult).trim() === '')
@@ -88,6 +86,7 @@ export default function ListPage() {
 
     if (topTab === '전체' && botTab) {
       const currentBot = BOT_TABS.find(t => t.key === botTab)
+
       if (currentBot?.filterKey) {
         list = list.filter(c => c[currentBot.filterKey] === currentBot.filterVal)
       }
@@ -95,6 +94,7 @@ export default function ListPage() {
 
     if (search.trim()) {
       const q = search.trim().toLowerCase()
+
       list = list.filter(c =>
         c.name?.toLowerCase().includes(q) ||
         c.phone?.includes(q) ||
@@ -103,18 +103,18 @@ export default function ListPage() {
       )
     }
 
-    return [...list].sort((a, b) => b.id - a.id)
+    return [...list].sort((a, b) => Number(b.id) - Number(a.id))
   }, [topFiltered, topTab, botTab, search])
 
-const handleDelete = async id => {
-  if (!window.confirm('정말 삭제하시겠습니까?')) return
+  const handleDelete = async id => {
+    if (!window.confirm('정말 삭제하시겠습니까?')) return
 
-  try {
-    await remove(id)
-  } catch (e) {
-    alert(`삭제 중 오류가 발생했습니다.\n${e.message || e}`)
+    try {
+      await remove(id)
+    } catch (e) {
+      alert(`삭제 중 오류가 발생했습니다.\n${e.message || e}`)
+    }
   }
-}
 
   const TabRow = ({ tabs, current, onChange }) => (
     <div
@@ -237,15 +237,16 @@ const handleDelete = async id => {
           </div>
         )}
 
-        {filtered.map(c => (
+        {!loading && !error && filtered.map(c => (
           <ConsultCard
             key={c.id}
             consult={c}
             onClick={() => navigate(`/detail/${c.id}`)}
             onEdit={() => navigate(`/input/${c.id}`)}
             onDelete={() => handleDelete(c.id)}
-         />
+          />
         ))}
       </div>
     </div>
   )
+}
