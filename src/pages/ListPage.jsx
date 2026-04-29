@@ -13,10 +13,10 @@ const TOP_TABS = [
 const BOT_TABS = [
   { key: '등록', filterKey: 'diagResult', filterVal: '등록' },
   { key: '미등록', filterKey: 'diagResult', filterVal: '미등록' },
-  { key: '문의만', filterKey: 'diagResult', filterVal: '문의만' },
+  { key: '연결', filterKey: 'diagResult', filterVal: '연결' },
   { key: '불가', filterKey: 'diagResult', filterVal: '불가' },
   { key: '체결', filterKey: 'diagResult', filterVal: '체결' },
-  { key: '기타', filterKey: 'diagResult', filterVal: '기타' },
+  { key: '펑크', filterKey: 'diagResult', filterVal: '펑크' },
 ]
 
 const TAB_COLOR = {
@@ -26,10 +26,10 @@ const TAB_COLOR = {
   가맹: { bg: 'rgba(14,165,233,0.12)', border: '#0ea5e9', text: '#0ea5e9' },
   등록: { bg: 'rgba(52,201,126,0.12)', border: 'var(--green)', text: 'var(--green)' },
   미등록: { bg: 'rgba(245,166,35,0.12)', border: 'var(--orange)', text: 'var(--orange)' },
-  문의만: { bg: 'rgba(168,85,247,0.12)', border: 'var(--purple)', text: 'var(--purple)' },
+  연결: { bg: 'rgba(168,85,247,0.12)', border: 'var(--purple)', text: 'var(--purple)' },
   불가: { bg: 'rgba(240,69,69,0.12)', border: 'var(--red)', text: 'var(--red)' },
   체결: { bg: 'rgba(79,126,248,0.12)', border: 'var(--accent)', text: 'var(--accent)' },
-  기타: { bg: 'rgba(156,163,175,0.12)', border: 'var(--text3)', text: 'var(--text2)' },
+  펑크: { bg: 'rgba(156,163,175,0.12)', border: 'var(--text3)', text: 'var(--text2)' },
 }
 
 const isOnlyReserved = c =>
@@ -44,7 +44,7 @@ export default function ListPage() {
   const [botTab, setBotTab] = useState(null)
   const [search, setSearch] = useState('')
 
-  const col = key => TAB_COLOR[key] || TAB_COLOR['기타']
+  const col = key => TAB_COLOR[key] || TAB_COLOR['펑크']
 
   useEffect(() => {
     if (topTab !== '전체') {

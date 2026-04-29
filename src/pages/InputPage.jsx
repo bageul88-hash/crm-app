@@ -23,6 +23,11 @@ function getDay(dateStr) {
   return ''
 }
 
+// 전화번호는 절대 숫자로 변환하지 않음
+function cleanPhone(value) {
+  return String(value || '').replace(/[^0-9]/g, '')
+}
+
 const EMPTY = {
   category: '',
   name: '',
@@ -92,6 +97,7 @@ export default function InputPage() {
           inquiryDay: found.inquiryDay || getDay(found.inquiryDate) || '',
           diagDate: found.diagDate || '',
           diagDay: found.diagDay || getDay(found.diagDate) || '',
+          phone: cleanPhone(found.phone),
         })
       }
     }
@@ -99,13 +105,13 @@ export default function InputPage() {
 
   useEffect(() => {
     if (location.state?.phone) {
-      setForm(prev => ({ ...prev, phone: location.state.phone }))
+      setForm(prev => ({ ...prev, phone: cleanPhone(location.state.phone) }))
     }
   }, [location.state])
 
   const set = (key, val) => {
     setForm(prev => {
-      const next = { ...prev, [key]: val }
+      const next = { ...prev, [key]: key === 'phone' ? cleanPhone(val) : val }
 
       if (key === 'inquiryDate') {
         next.inquiryDay = getDay(val)
@@ -138,7 +144,9 @@ export default function InputPage() {
       return
     }
 
-    if (!form.phone.trim()) {
+    const phoneText = cleanPhone(form.phone)
+
+    if (!phoneText) {
       setMsg('전화번호를 입력해주세요')
       return
     }
@@ -165,7 +173,7 @@ export default function InputPage() {
         diagResult: form.diagResult || '',
         relation: relationValue || '',
         feature: form.feature || '',
-        phone: form.phone || '',
+        phone: phoneText,
       }
 
       if (isEdit) {
@@ -173,11 +181,11 @@ export default function InputPage() {
         setMsg('✅ 수정되었습니다')
         setTimeout(() => navigate('/'), 800)
       } else {
-        const phoneKey = String(payload.phone || '').replace(/\D/g, '')
+        const phoneKey = phoneText
         const nameKey = String(payload.name || '').trim()
 
         const exists = consults.some(c =>
-          String(c.phone || '').replace(/\D/g, '') === phoneKey &&
+          cleanPhone(c.phone) === phoneKey &&
           String(c.name || '').trim() === nameKey
         )
 
@@ -328,6 +336,7 @@ export default function InputPage() {
         <input
           className="input"
           type="tel"
+          inputMode="numeric"
           placeholder="예: 01012345678"
           value={form.phone || ''}
           onChange={e => set('phone', e.target.value)}
