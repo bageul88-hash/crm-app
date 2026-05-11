@@ -1,6 +1,7 @@
 // ✅ Apps Script 배포 URL
 export const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbym9Gen7mWXPrkHiD_fLLu5F9KCVZbPkdunrA_FlfO7nKr-E0FCpIzp5BwfkMy-VUDo/exec'
+  'https://script.google.com/macros/s/AKfycbzEqb1D0byiP1ctmKSq2dV9c-CZCerJkL3LyBsV-fSiB1yvSj_vCQLTIsHb3O3Z5rHw/exec'
+  
 
 // 실제 시트 열 순서
 export const FIELD_MAP = {
@@ -19,24 +20,36 @@ export const FIELD_MAP = {
   phone: 12,
   source: 13,
   savedAt: 14,
+  branchId: 15,
+  branchName: 16,
+  lessonDate: 17,
+  lessonDay: 18,
+  lessonTime: 19,
 }
 
-// 구분 탭: 기타/펑크 대신 연결
-export const CATEGORY_TABS = ['전체', '예약', '문의', '가맹', '연결']
+export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중']
 
 export const OPTIONS = {
-  category: ['예약', '문의', '가맹', '연결'],
+  category: ['예약', '문의', '수업중'],
   age: Array.from({ length: 75 }, (_, i) => `${i + 6}세`),
   gender: ['남', '여'],
   diagTime: [
-    '오전 8:00', '오전 8:30', '오전 9:00', '오전 9:30',
-    '오전 10:00', '오전 10:30', '오전 11:00', '오전 11:30',
+    '오전 8:00', '오전 8:30',
+    '오전 9:00', '오전 9:30',
+    '오전 10:00', '오전 10:30',
+    '오전 11:00', '오전 11:30',
     '오후 12:00', '오후 12:30',
-    '오후 1:00', '오후 1:30', '오후 2:00', '오후 2:30',
-    '오후 3:00', '오후 3:30', '오후 4:00', '오후 4:30',
-    '오후 5:00', '오후 5:30', '오후 6:00',
+    '오후 1:00', '오후 1:30',
+    '오후 2:00', '오후 2:30',
+    '오후 3:00', '오후 3:30',
+    '오후 4:00', '오후 4:30',
+    '오후 5:00', '오후 5:30',
+    '오후 6:00', '오후 6:30',
+    '오후 7:00', '오후 7:30',
+    '오후 8:00', '오후 8:30',
+    '오후 9:00',
   ],
-  diagResult: ['등록', '미등록', '연결', '불가', '체결', '펑크'],
+  diagResult: ['등록', '미등록', '연결', '핑크', '환불', '기타'],
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
 }
 
@@ -58,15 +71,62 @@ function phoneForSheet(value) {
 }
 
 function normalizeCategory(value) {
-  if (value === '기타') return '연결'
-  if (value === '펑크') return '연결'
+  if (value === '가맹') return '수업중'
+  if (value === '연결') return ''
   return value || ''
 }
 
 function normalizeDiagResult(value) {
   if (value === '문의만') return '연결'
-  if (value === '기타') return '펑크'
+  if (value === '불가') return '기타'
+  if (value === '체결') return '환불'
   return value || ''
+}
+
+function normalizeDateValue(value) {
+  if (!value) return ''
+
+  const str = String(value).trim()
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str
+  }
+
+  if (str.includes('T')) {
+    return str.slice(0, 10)
+  }
+
+  const clean = str.replace(/[^0-9]/g, '')
+
+  if (clean.length === 8) {
+    return `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`
+  }
+
+  return str.slice(0, 10)
+}
+
+function normalizeTimeValue(value) {
+  if (!value) return ''
+
+  const str = String(value).trim()
+
+  if (str.includes('오전') || str.includes('오후')) {
+    return str.replace(/\s+/g, ' ')
+  }
+
+  const timeMatch = str.match(/(\d{1,2}):(\d{2})/)
+  if (timeMatch) {
+    const h = Number(timeMatch[1])
+    const m = timeMatch[2]
+
+    if (h === 0) return `오전 12:${m}`
+    if (h < 12) return `오전 ${h}:${m}`
+    if (h === 12) return `오후 12:${m}`
+
+    return `오후 ${h - 12}:${m}`
+  }
+
+  return str
 }
 
 function normalizePayload(payload) {
@@ -82,6 +142,26 @@ function normalizePayload(payload) {
 
   if ('diagResult' in next) {
     next.diagResult = normalizeDiagResult(next.diagResult)
+  }
+
+  if ('inquiryDate' in next) {
+    next.inquiryDate = normalizeDateValue(next.inquiryDate)
+  }
+
+  if ('diagDate' in next) {
+    next.diagDate = normalizeDateValue(next.diagDate)
+  }
+
+  if ('lessonDate' in next) {
+    next.lessonDate = normalizeDateValue(next.lessonDate)
+  }
+
+  if ('diagTime' in next) {
+    next.diagTime = normalizeTimeValue(next.diagTime)
+  }
+
+  if ('lessonTime' in next) {
+    next.lessonTime = normalizeTimeValue(next.lessonTime)
   }
 
   return next
@@ -171,17 +251,12 @@ function rowToObject(row) {
   for (const [key, idx] of Object.entries(FIELD_MAP)) {
     let val = row[idx] ?? ''
 
-    if (key !== 'diagTime' && typeof val === 'string' && val.includes('T')) {
-      val = val.slice(0, 10)
+    if (key === 'inquiryDate' || key === 'diagDate' || key === 'lessonDate' || key === 'savedAt') {
+      val = normalizeDateValue(val)
     }
 
-    if (key === 'diagTime' && typeof val === 'string' && val.includes('T')) {
-      const t = new Date(val)
-      const h = t.getUTCHours()
-      const m = String(t.getUTCMinutes()).padStart(2, '0')
-      const ampm = h < 12 ? '오전' : '오후'
-      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
-      val = `${ampm} ${h12}:${m}`
+    if (key === 'diagTime' || key === 'lessonTime') {
+      val = normalizeTimeValue(val)
     }
 
     if (key === 'phone') {

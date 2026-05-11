@@ -1,84 +1,105 @@
-// 날짜 포맷
-function fmtDate(val) {
-  if (!val) return ''
-
-  const str = String(val)
+function fmtDate(value) {
+  if (!value) return ''
+  const str = String(value)
   const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (!match) return str.slice(0, 10)
-
-  return `${match[1]}-${match[2]}-${match[3]}`
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : str.slice(0, 10)
 }
 
-const RESULT_COLOR = {
-  등록: 'var(--green)',
-  미등록: 'var(--orange)',
-  문의만: 'var(--purple)',
-  불가: 'var(--red)',
-  체결: 'var(--accent)',
-  펑크: 'var(--text2)',
+const DAY_KR = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
+
+function getDayFromDate(value) {
+  const dateStr = fmtDate(value)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return ''
+
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== m - 1 ||
+    date.getDate() !== d
+  ) {
+    return ''
+  }
+
+  return DAY_KR[date.getDay()]
 }
 
-export default function ConsultCard({ consult: c, onClick, onEdit, onDelete }) {
+function formatAge(value) {
+  if (!value) return ''
+  const text = String(value).trim()
+  return text.endsWith('세') ? text : `${text}세`
+}
+
+function getStatus(consult) {
+  if (consult.diagResult) return consult.diagResult
+  if (consult.category) return consult.category
+  return ''
+}
+
+function hasLessonInfo(item) {
+  return Boolean(item?.lessonDate || item?.lessonDay || item?.lessonTime)
+}
+
+function shouldShowLessonBadge(item) {
   return (
-    <div
-      className="card fade-in"
-      style={{ cursor: 'pointer' }}
-      onClick={onClick}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: 6,
-        }}
-      >
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 15 }}>
-            {c.name || '(이름없음)'}
-          </div>
+    ['예약', '등록', '수업중'].includes(item?.category) ||
+    ['예약', '등록', '수업중'].includes(item?.diagResult)
+  )
+}
 
-          <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-            {c.phone}
-            {c.age ? ` • ${c.age}` : ''}
-            {c.gender ? ` ${c.gender}` : ''}
-            {c.relation ? ` • ${c.relation}` : ''}
-          </div>
+function getLessonText(item) {
+  if (!shouldShowLessonBadge(item) || !hasLessonInfo(item)) return ''
+
+  const date = fmtDate(item.lessonDate)
+  const day = item.lessonDay || getDayFromDate(item.lessonDate)
+  const time = item.lessonTime || ''
+
+  const parts = [date, day, time].filter(Boolean)
+
+  return parts.length ? `수업중 - ${parts.join(' ')}` : ''
+}
+
+export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
+  const c = consult || {}
+  const status = getStatus(c)
+  const lessonText = getLessonText(c)
+  const phone = c.phone || '-'
+
+  return (
+    <article className="consult-card fade-in" onClick={onClick}>
+      <div className="consult-card-top">
+        <div className="consult-info">
+          <h3>{c.name || '(이름없음)'}</h3>
+
+          <p>
+            {phone}
+            {c.age ? ` · ${formatAge(c.age)}` : ''}
+          </p>
+
+          <p>
+            {c.gender || ''}
+            {c.relation ? ` · ${c.relation}` : ''}
+          </p>
         </div>
 
-        {/* 버튼 영역 */}
-        <div style={{ display: 'flex', gap: 6 }}>
-
-          {/* 수정 버튼 */}
+        <div className="card-actions">
           <button
             type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={(e) => {
+            className="mini-btn edit"
+            onClick={e => {
               e.stopPropagation()
-              onEdit()
+              onEdit?.()
             }}
           >
             수정
           </button>
 
-          {/* 삭제 버튼 (핵심 수정) */}
           <button
             type="button"
-            className="btn btn-ghost btn-sm"
-            style={{
-              color: 'var(--red)',
-              border: '1px solid rgba(240,69,69,0.4)',
-              background: 'rgba(240,69,69,0.05)',
-              cursor: 'pointer',
-              zIndex: 999,
-              position: 'relative'
-            }}
-            onClick={(e) => {
-              e.preventDefault()
+            className="mini-btn delete"
+            onClick={e => {
               e.stopPropagation()
-
-              console.log('삭제 클릭됨', c.id) // 확인용
-
               onDelete?.()
             }}
           >
@@ -87,23 +108,30 @@ export default function ConsultCard({ consult: c, onClick, onEdit, onDelete }) {
         </div>
       </div>
 
-      {c.feature && (
-        <div style={{ fontSize: 13, marginBottom: 6 }}>
-          {c.feature}
-        </div>
-      )}
+      {c.feature && <p className="consult-feature">{c.feature}</p>}
 
-      <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-        {c.inquiryDate && (
-          <span>📅 {fmtDate(c.inquiryDate)}</span>
-        )}
+      <div className="consult-dates">
+        {c.inquiryDate && <span>📅 {fmtDate(c.inquiryDate)}</span>}
 
         {c.diagDate && (
-          <span style={{ marginLeft: 10, color: 'var(--orange)' }}>
-            🔔 {fmtDate(c.diagDate)} {c.diagTime}
+          <span>
+            🔔 {fmtDate(c.diagDate)}
+            {c.diagTime ? ` ${c.diagTime}` : ''}
           </span>
         )}
       </div>
-    </div>
+
+      <div className="consult-bottom">
+        <div className="card-bottom-status">
+          {status && <span className="status-chip">{status}</span>}
+
+          {lessonText && (
+            <span className="lesson-chip">
+              {lessonText}
+            </span>
+          )}
+        </div>
+      </div>
+    </article>
   )
 }

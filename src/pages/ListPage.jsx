@@ -1,252 +1,119 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { CATEGORY_TABS } from '../api/sheets'
+import { BRANCHES } from '../auth/users'
 import ConsultCard from '../components/ConsultCard'
 
-const TOP_TABS = [
-  { key: '전체' },
-  { key: '예약' },
-  { key: '문의' },
-  { key: '가맹' },
-]
-
-const BOT_TABS = [
-  { key: '등록', filterKey: 'diagResult', filterVal: '등록' },
-  { key: '미등록', filterKey: 'diagResult', filterVal: '미등록' },
-  { key: '연결', filterKey: 'diagResult', filterVal: '연결' },
-  { key: '불가', filterKey: 'diagResult', filterVal: '불가' },
-  { key: '체결', filterKey: 'diagResult', filterVal: '체결' },
-  { key: '펑크', filterKey: 'diagResult', filterVal: '펑크' },
-]
-
-const TAB_COLOR = {
-  전체: { bg: 'rgba(79,126,248,0.12)', border: 'var(--accent)', text: 'var(--accent)' },
-  예약: { bg: 'rgba(52,201,126,0.12)', border: 'var(--green)', text: 'var(--green)' },
-  문의: { bg: 'rgba(168,85,247,0.12)', border: 'var(--purple)', text: 'var(--purple)' },
-  가맹: { bg: 'rgba(14,165,233,0.12)', border: '#0ea5e9', text: '#0ea5e9' },
-  등록: { bg: 'rgba(52,201,126,0.12)', border: 'var(--green)', text: 'var(--green)' },
-  미등록: { bg: 'rgba(245,166,35,0.12)', border: 'var(--orange)', text: 'var(--orange)' },
-  연결: { bg: 'rgba(168,85,247,0.12)', border: 'var(--purple)', text: 'var(--purple)' },
-  불가: { bg: 'rgba(240,69,69,0.12)', border: 'var(--red)', text: 'var(--red)' },
-  체결: { bg: 'rgba(79,126,248,0.12)', border: 'var(--accent)', text: 'var(--accent)' },
-  펑크: { bg: 'rgba(156,163,175,0.12)', border: 'var(--text3)', text: 'var(--text2)' },
-}
-
-const isOnlyReserved = c =>
-  c.category === '예약' &&
-  (!c.diagResult || String(c.diagResult).trim() === '')
-
 export default function ListPage() {
-  const { consults, loading, error, remove } = useApp()
+  const { consults, loading, error, remove, currentUser } = useApp()
   const navigate = useNavigate()
-
-  const [topTab, setTopTab] = useState('전체')
-  const [botTab, setBotTab] = useState(null)
+  const isAdmin = currentUser?.role === 'admin'
+  const [tab, setTab] = useState('전체')
   const [search, setSearch] = useState('')
+  const [branchFilter, setBranchFilter] = useState('전체')
 
-  const col = key => TAB_COLOR[key] || TAB_COLOR['펑크']
-
-  useEffect(() => {
-    if (topTab !== '전체') {
-      setBotTab(null)
-    }
-  }, [topTab])
-
-  const topFiltered = useMemo(() => {
-    let list = consults
-
-    if (topTab === '예약') {
-      list = list.filter(isOnlyReserved)
-    } else if (topTab === '문의') {
-      list = list.filter(c => c.category === '문의')
-    } else if (topTab === '가맹') {
-      list = list.filter(c => c.category === '가맹')
-    }
-
-    return list
-  }, [consults, topTab])
+  // 관리자: 지사 필터 적용 / 지사 계정: 이미 context에서 자기 지사만 내려옴
+  const branchFiltered = useMemo(() => {
+    if (!isAdmin || branchFilter === '전체') return consults
+    return consults.filter(c => c.branchId === branchFilter)
+  }, [consults, isAdmin, branchFilter])
 
   const counts = useMemo(() => {
-    const map = {}
-
-    map['전체'] = consults.length
-    map['예약'] = consults.filter(isOnlyReserved).length
-    map['문의'] = consults.filter(c => c.category === '문의').length
-    map['가맹'] = consults.filter(c => c.category === '가맹').length
-
-    BOT_TABS.forEach(t => {
-      map[t.key] = consults.filter(c => c[t.filterKey] === t.filterVal).length
-    })
-
+    const map = { '전체': branchFiltered.length }
+    for (const t of CATEGORY_TABS.slice(1)) {
+      map[t] = branchFiltered.filter(c => c.category === t).length
+    }
     return map
-  }, [consults])
+  }, [branchFiltered])
 
   const filtered = useMemo(() => {
-    let list = topFiltered
-
-    if (topTab === '전체' && botTab) {
-      const currentBot = BOT_TABS.find(t => t.key === botTab)
-
-      if (currentBot?.filterKey) {
-        list = list.filter(c => c[currentBot.filterKey] === currentBot.filterVal)
-      }
-    }
-
+    let list = tab === '전체' ? branchFiltered : branchFiltered.filter(c => c.category === tab)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-
       list = list.filter(c =>
-        c.name?.toLowerCase().includes(q) ||
-        c.phone?.includes(q) ||
-        c.feature?.toLowerCase().includes(q) ||
-        c.relation?.toLowerCase().includes(q)
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q)
       )
     }
+    return list
+  }, [branchFiltered, tab, search])
 
-    return [...list].sort((a, b) => Number(b.id) - Number(a.id))
-  }, [topFiltered, topTab, botTab, search])
-
-  const handleDelete = async id => {
-    if (!window.confirm('정말 삭제하시겠습니까?')) return
-
-    try {
-      await remove(id)
-    } catch (e) {
-      alert(`삭제 중 오류가 발생했습니다.\n${e.message || e}`)
-    }
+  const handleDelete = async consult => {
+    if (!window.confirm(`"${consult.name}" 상담을 삭제할까요?`)) return
+    await remove(consult.id)
   }
 
-  const TabRow = ({ tabs, current, onChange }) => (
-    <div
-      style={{
-        display: 'flex',
-        gap: 6,
-        overflowX: 'auto',
-        whiteSpace: 'nowrap',
-        scrollbarWidth: 'none',
-        WebkitOverflowScrolling: 'touch',
-        paddingBottom: 2,
-      }}
-    >
-      {tabs.map(t => {
-        const active = current === t.key
-        const c = col(t.key)
-
-        return (
-          <button
-            key={t.key}
-            onClick={() => onChange(t.key)}
-            style={{
-              flexShrink: 0,
-              padding: '6px 12px',
-              borderRadius: 20,
-              border: `1px solid ${active ? c.border : 'var(--border)'}`,
-              background: active ? c.bg : 'transparent',
-              color: active ? c.text : 'var(--text2)',
-              fontSize: 13,
-              fontWeight: active ? 600 : 400,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-              fontFamily: 'var(--font)',
-            }}
-          >
-            {t.key}
-            <span style={{ marginLeft: 4, fontSize: 11, opacity: 0.8 }}>
-              {counts[t.key] ?? 0}
-            </span>
-          </button>
-        )
-      })}
-    </div>
-  )
-
   return (
-    <div>
-      <div style={{ padding: '14px 16px 0' }}>
-        <div style={{ position: 'relative' }}>
-          <span
-            style={{
-              position: 'absolute',
-              left: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text3)',
-              fontSize: 15,
-            }}
-          >
-            🔍
-          </span>
-
-          <input
-            className="input"
-            style={{ paddingLeft: 36 }}
-            placeholder="이름, 전화번호, 특징 검색"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
+    <div className="list-page">
+      <div className="search-box">
+        <span>🔍</span>
+        <input
+          placeholder="이름 또는 전화번호 검색"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
       </div>
 
-      <div style={{ padding: '12px 16px 0' }}>
-        <TabRow tabs={TOP_TABS} current={topTab} onChange={setTopTab} />
-      </div>
-
-      {topTab === '전체' && (
-        <div style={{ padding: '6px 16px 0' }}>
-          <TabRow tabs={BOT_TABS} current={botTab} onChange={setBotTab} />
+      {isAdmin && (
+        <div className="tab-wrap" style={{ paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+          {[{ id: '전체', name: '전체' }, ...BRANCHES].map(b => (
+            <button
+              key={b.id}
+              type="button"
+              className={`category-chip${branchFilter === b.id ? ' active' : ''}`}
+              onClick={() => setBranchFilter(b.id)}
+            >
+              {b.name}
+            </button>
+          ))}
         </div>
       )}
 
-      <div
-        style={{
-          padding: '12px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-        }}
-      >
-        {loading && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-            <div className="spinner" />
-          </div>
-        )}
-
-        {error && (
-          <div
-            style={{
-              background: 'rgba(240,69,69,0.1)',
-              border: '1px solid rgba(240,69,69,0.3)',
-              borderRadius: 'var(--radius)',
-              padding: 16,
-              color: 'var(--red)',
-              fontSize: 14,
-            }}
+      <div className="tab-wrap">
+        {CATEGORY_TABS.map(t => (
+          <button
+            key={t}
+            type="button"
+            className={`category-chip${tab === t ? ' active' : ''}`}
+            onClick={() => setTab(t)}
           >
-            ⚠️ {error}
-          </div>
-        )}
-
-        {!loading && !error && filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text3)' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
-            <div style={{ fontSize: 14 }}>
-              {topTab === '전체' && !botTab
-                ? '상담 내역이 없습니다'
-                : `'${topTab}${botTab ? ` > ${botTab}` : ''}' 항목이 없습니다`}
-            </div>
-          </div>
-        )}
-
-        {!loading && !error && filtered.map(c => (
-          <ConsultCard
-            key={c.id}
-            consult={c}
-            onClick={() => navigate(`/detail/${c.id}`)}
-            onEdit={() => navigate(`/input/${c.id}`)}
-            onDelete={() => handleDelete(c.id)}
-          />
+            {t}<span>{counts[t] ?? 0}</span>
+          </button>
         ))}
       </div>
+
+      <div className="list-divider" />
+
+      {loading && (
+        <div className="center-box">
+          <div className="spinner" />
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="error-box">{error}</div>
+      )}
+
+      {!loading && !error && filtered.length === 0 && (
+        <div className="empty-box">
+          {search ? '검색 결과가 없습니다' : '등록된 상담이 없습니다'}
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div className="consult-list">
+          {filtered.map(c => (
+            <ConsultCard
+              key={c.id}
+              consult={c}
+              onClick={() => navigate(`/detail/${c.id}`)}
+              onEdit={() => navigate(`/input/${c.id}`)}
+              onDelete={() => handleDelete(c)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

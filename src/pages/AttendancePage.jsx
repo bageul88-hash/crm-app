@@ -13,6 +13,7 @@ export default function AttendancePage() {
   const [processing, setProcessing] = useState(false)
   const [copyDone, setCopyDone]     = useState(false)
   const [tab, setTab]               = useState('attend') // 'attend' | 'manage'
+  const [smsNotice, setSmsNotice]   = useState(null)
 
   useEffect(() => {
     const saved    = localStorage.getItem('attendance_students')
@@ -28,6 +29,20 @@ export default function AttendancePage() {
         setStudents(parsed)
       }
     }
+  }, [])
+
+  // App.jsx에서 디스패치된 SMS 등원 이벤트 수신 → in-memory 상태 즉시 반영
+  useEffect(() => {
+    const handler = (e) => {
+      const { studentName } = e.detail
+      setStudents(prev => prev.map(s =>
+        s.name === studentName ? { ...s, done: true, checked: false } : s
+      ))
+      setSmsNotice(studentName)
+      setTimeout(() => setSmsNotice(null), 5000)
+    }
+    window.addEventListener('smsAttendance', handler)
+    return () => window.removeEventListener('smsAttendance', handler)
   }, [])
 
   const persist = useCallback((list) => {
@@ -114,6 +129,20 @@ export default function AttendancePage() {
           <div style={{ fontSize: 11, opacity: 0.8 }}>/{totalCount}명 처리됨</div>
         </div>
       </div>
+
+      {/* SMS 자동 등원 알림 */}
+      {smsNotice && (
+        <div style={{
+          background: 'rgba(22,163,74,0.12)', border: '1px solid var(--green)',
+          borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 12,
+          display: 'flex', alignItems: 'center', gap: 10,
+          fontSize: 14, color: 'var(--green)', fontWeight: 600,
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          <span style={{ fontSize: 18 }}>✅</span>
+          <span>{smsNotice} 학생 등원 문자 감지 → 자동 출석 처리됨</span>
+        </div>
+      )}
 
       {/* 탭 */}
       <div style={{

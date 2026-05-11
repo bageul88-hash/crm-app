@@ -2,24 +2,26 @@ import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import dayjs from 'dayjs'
 
-const TOP_TABS = ['전체', '예약', '문의', '가맹']
-const BOT_TABS = ['등록', '미등록', '문의만', '불가', '체결', '기타']
+const TOP_TABS = ['전체', '예약', '문의', '수업중']
+const BOT_TABS = ['등록', '미등록', '문의만', '환불', '기타', '핑크']
 
 const RESULT_COLOR = {
   등록: 'var(--green)',
   미등록: 'var(--orange)',
   문의만: 'var(--purple)',
-  불가: 'var(--red)',
-  체결: 'var(--accent)',
-  기타: 'var(--text2)',
+  환불: 'var(--red)',
+  기타: 'var(--accent)',
+  핑크: 'var(--pink)',
 }
 
 const TEMPLATES = [
   { key: 'studentReserve', label: '학생 진단·예약' },
   { key: 'generalReserve', label: '일반인 진단·예약' },
+  { key: 'examReserve', label: '고시생 진단·예약' },
   { key: 'studentAsk', label: '학생 문의' },
   { key: 'generalAsk', label: '일반인 문의' },
-  { key: 'franchise', label: '가맹 문의' },
+  { key: 'examAsk', label: '고시생 문의' },
+  { key: 'classing', label: '수업중 안내' },
 ]
 
 // 예약만 체크된 데이터만 문자대상 예약 탭에 표시
@@ -40,41 +42,202 @@ function makeSmsBody(c, templateKey) {
   const date = fmtDate(c?.diagDate)
   const day = c?.diagDay ? `(${c.diagDay})` : ''
   const time = c?.diagTime || ''
+  const schedule = `${date} ${day} ${time}`.trim()
 
   if (templateKey === 'studentReserve') {
-    return `${name} 학생 진단 예약 안내드립니다.
+    return `♤참바른글씨 진단테스트 예약
 
-진단일: ${date} ${day}
-시간: ${time}
+🏆 대한민국 최다 방송사 소개
+📚 『또박또박 예쁜글씨(길벗)』 14만부 판매 저자
+🏫 전국 17곳 캠퍼스 / 강남 선릉 본사 대표 직강
 
-예약 시간에 맞춰 방문 부탁드립니다.`
+📅 예약일시
+${schedule}
+
+[준비물]
+평소 사용하던 한글노트, 영어노트 또는 참고서 각 1권
+필통 (필수)
+
+[진단 안내]
+테스트 → 진단 → 결과 상담 (당일 진행)
+필체 및 습관 분석 포함
+상담비: 10,000원 (약 40~50분)
+
+📞 02-558-4111
+🌐 pentwo.com
+
+[오시는 길]
+네비게이션: 한신인터밸리24 주차장 → 동관 3층 315호
+
+[대중교통]
+선릉역 2호선 4번 출구 → 직진 80m → 좌측
+한신인터밸리24 3층 315호`
   }
 
   if (templateKey === 'generalReserve') {
-    return `${name}님 진단 및 상담 예약 안내드립니다.
+    return `♤참바른글씨 진단테스트 예약
 
-진단일: ${date} ${day}
-시간: ${time}
+🏆 대한민국 최다 방송사 소개
+📚 『또박또박 예쁜글씨(길벗)』 14만부 판매 저자
+🏫 전국 17곳 캠퍼스 / 강남 선릉 본사 대표 직강
 
-예약 시간에 맞춰 방문 부탁드립니다.`
+📅 예약일시
+${schedule}
+
+[진단 안내]
+테스트 → 진단 → 결과 상담 (당일 진행)
+필체 및 습관 분석 포함
+상담비: 10,000원 (약 40~50분)
+
+📞 02-558-4111
+🌐 pentwo.com
+
+[오시는 길]
+네비게이션: 한신인터밸리24 주차장 → 동관 3층 315호
+
+[대중교통]
+선릉역 2호선 4번 출구 → 직진 80m → 좌측
+한신인터밸리24 3층 315호`
+  }
+
+  if (templateKey === 'examReserve') {
+    return `♤참바른글씨 진단테스트 예약
+
+🏆 대한민국 최다 방송사 소개
+📚 『또박또박 예쁜글씨(길벗)』 14만부 판매 저자
+🏫 전국 17곳 캠퍼스 / 강남 선릉 본사 대표 직강
+
+📅 예약일시
+${schedule}
+
+[준비물]
+평상시 쓴 글씨 또는 필기한 모의고사 용지
+평상시 쓰는 볼펜 또는 펜(필수*)
+
+[진단 안내]
+테스트 → 진단 → 결과 상담 (당일 진행)
+필체 및 습관 분석 포함
+상담비: 10,000원 (약 40~50분)
+
+📞 02-558-4111
+🌐 pentwo.com
+
+[오시는 길]
+네비게이션: 한신인터밸리24 주차장 → 동관 3층 315호
+
+[대중교통]
+선릉역 2호선 4번 출구 → 직진 80m → 좌측
+한신인터밸리24 3층 315호`
   }
 
   if (templateKey === 'studentAsk') {
-    return `${name} 학생 문의 주셔서 감사합니다.
+    return `♤ 참바른글씨 학생 상담 안내
 
-상담 가능 시간에 순차적으로 연락드리겠습니다.`
+🏆 대한민국 최다 방송사 소개
+📚 『또박또박 예쁜글씨(길벗)』 14만부 판매 저자
+🏫 전국 17곳 캠퍼스 / 강남 선릉 본사 대표 직강
+
+♡ 상담 예약 필수 ♡
+
+[진단 안내]
+테스트 → 진단 → 결과 상담 (당일 진행)
+필체 및 습관 분석 포함
+상담비: 10,000원 (약 40~50분 소요)
+
+[준비물]
+평소 필기한 수학 참고서 1권
+필통 (필수 지참)
+
+📞 02-558-4111
+🌐 pentwo.com
+
+[오시는 길 안내]
+네비게이션: 한신인터밸리24 주차장
+→ 동관 3층 315호
+
+🚇 대중교통
+선릉역 2호선 4번 출구 → 직진 80m → 좌측
+한신인터밸리24 3층 315호`
   }
 
   if (templateKey === 'generalAsk') {
-    return `${name}님 문의 주셔서 감사합니다.
+    return `♤ 참바른글씨 상담 안내
 
-상담 가능 시간에 순차적으로 연락드리겠습니다.`
+🏆 대한민국 최다 방송사 소개
+📚 『또박또박 예쁜글씨(길벗)』 14만부 판매 저자
+🏫 전국 17곳 캠퍼스 / 강남 선릉 본사 대표 직강
+
+♡ 상담 예약 필수 ♡
+
+[진단 안내]
+테스트 → 진단 → 결과 상담 (당일 진행)
+필체 및 습관 분석 포함
+상담비: 10,000원 (약 40~50분 소요)
+
+📞 02-558-4111
+🌐 pentwo.com
+
+[오시는 길 안내]
+네비게이션: 한신인터밸리24 주차장
+→ 동관 3층 315호
+
+🚇 대중교통
+선릉역 2호선 4번 출구 → 직진 80m → 좌측
+한신인터밸리24 3층 315호`
+  }
+
+  if (templateKey === 'examAsk') {
+    return `♤참바른글씨 상담 안내
+
+🏆 대한민국 최다 방송사 소개
+📚 『또박또박 예쁜글씨(길벗)』 14만부 판매 저자
+🏫 전국 17곳 캠퍼스 / 강남 선릉 본사 대표 직강
+
+[준비물]
+평상시 쓴 글씨 또는 필기한 모의고사 용지
+평상시 쓰는 볼펜 또는 펜(필수*)
+
+[진단 안내]
+테스트 → 진단 → 결과 상담 (당일 진행)
+필체 및 습관 분석 포함
+상담비: 10,000원 (약 40~50분)
+
+📞 02-558-4111
+🌐 pentwo.com
+
+[오시는 길]
+네비게이션: 한신인터밸리24 주차장 → 동관 3층 315호
+
+[대중교통]
+선릉역 2호선 4번 출구 → 직진 80m → 좌측
+한신인터밸리24 3층 315호`
   }
 
   if (templateKey === 'franchise') {
-    return `${name}님 가맹 문의 주셔서 감사합니다.
+    return `♤ 참바른글씨 가맹 문의 
 
-확인 후 담당자가 연락드리겠습니다.`
+대한민국 최다 방송사 소개
+최다 저서 (조선일보사, 길벗출판사 등)
+『또박또박 예쁜글씨(길벗)』 14만부 판매 돌파 저자
+전국 17곳 캠퍼스 운영
+노트를 보지 않고 필기하는
+뇌과학 글씨교정 창시자
+대표 유성영
+
+📅 상담 예약일시
+1월 24일 (토) 오후 1시
+
+📞 02-558-4111
+🌐 pentwo.com
+🌐 hunmaeng.com
+
+[오시는 길 안내]
+네비게이션: 한신인터밸리24 주차장
+→ 동관 3층 315호
+
+🚇 대중교통
+선릉역 2호선 4번 출구 → 직진 80m → 좌측
+한신인터밸리24 3층 315호`
   }
 
   return `${name}님 안녕하세요. 상담 안내드립니다.`
@@ -103,8 +266,8 @@ export default function SMSPage() {
       list = list.filter(isOnlyReserved)
     } else if (topTab === '문의') {
       list = list.filter(c => c.category === '문의')
-    } else if (topTab === '가맹') {
-      list = list.filter(c => c.category === '가맹')
+    } else if (topTab === '수업중') {
+      list = list.filter(c => c.category === '수업중' || c.diagResult === '수업중')
     }
 
     return list
@@ -134,7 +297,7 @@ export default function SMSPage() {
     map['전체'] = consults.length
     map['예약'] = consults.filter(isOnlyReserved).length
     map['문의'] = consults.filter(c => c.category === '문의').length
-    map['가맹'] = consults.filter(c => c.category === '가맹').length
+    map['수업중'] = consults.filter(c => c.category === '수업중' || c.diagResult === '수업중').length
 
     BOT_TABS.forEach(t => {
       map[t] = topFiltered.filter(c => c.diagResult === t).length

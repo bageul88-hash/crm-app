@@ -1,17 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.pentwo.crmapp">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 인터넷 (Apps Script 통신) -->
+    <!-- 인터넷 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- 통화 감지 권한 -->
+    <!-- 통화 상태 -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
 
-    <!-- 진동 (햅틱 피드백) -->
-    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 통화 기록 -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+
+    <!-- Android 13+ 알림 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 포그라운드 서비스 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- 전화 포그라운드 서비스 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
+    <!-- SMS 수신 (아이출첵 등원 문자 자동 출석 처리) -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
 
     <application
         android:allowBackup="true"
@@ -24,26 +34,37 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
-            android:screenOrientation="portrait">
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
 
-        <!-- 통화 상태 변화 수신 -->
-        <receiver
-            android:name=".CallPlugin$CallReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.PHONE_STATE" />
-                <action android:name="android.intent.action.NEW_OUTGOING_CALL" />
-            </intent-filter>
-        </receiver>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+
+        </provider>
+
+        <service
+            android:name=".CallStateService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
 
     </application>
 
