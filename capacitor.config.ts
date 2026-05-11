@@ -1,22 +1,18 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  // ✅ 앱 고유 ID — 나중에 플레이스토어 등록 시 이 ID 사용
   appId: 'com.pentwo.crmapp',
-
-  // ✅ 앱 이름 (폰 화면에 표시되는 이름)
   appName: '상담 CRM',
-
-  // React 빌드 결과물 폴더
   webDir: 'dist',
 
-  // 번들 JS 서버 설정 (로컬 개발 시 사용, 배포 시 false)
-  bundledWebRuntime: false,
+  // 웹앱을 Render 서버에서 로드 (앱 업데이트 시 APK 재배포 불필요)
+  server: {
+    url: 'https://crm-app-sj7m.onrender.com',
+    cleartext: false,
+  },
 
   android: {
-    // 통화 기록 접근을 위한 백그라운드 모드
     allowMixedContent: true,
-    // 상태바 색상
     backgroundColor: '#0f1117',
   },
 
