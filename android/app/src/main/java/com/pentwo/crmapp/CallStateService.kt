@@ -127,7 +127,7 @@ class CallStateService : Service() {
                 URLEncoder.encode(phone, "UTF-8")
 
             val url =
-                "http://localhost/input?phone=$encodedPhone"
+                "https://crm-app-sj7m.onrender.com/input?phone=$encodedPhone"
 
             val openIntent =
                 Intent(

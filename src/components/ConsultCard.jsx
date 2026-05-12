@@ -10,18 +10,9 @@ const DAY_KR = ['일요일', '월요일', '화요일', '수요일', '목요일',
 function getDayFromDate(value) {
   const dateStr = fmtDate(value)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return ''
-
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(y, m - 1, d)
-
-  if (
-    date.getFullYear() !== y ||
-    date.getMonth() !== m - 1 ||
-    date.getDate() !== d
-  ) {
-    return ''
-  }
-
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return ''
   return DAY_KR[date.getDay()]
 }
 
@@ -50,14 +41,25 @@ function shouldShowLessonBadge(item) {
 
 function getLessonText(item) {
   if (!shouldShowLessonBadge(item) || !hasLessonInfo(item)) return ''
-
   const date = fmtDate(item.lessonDate)
   const day = item.lessonDay || getDayFromDate(item.lessonDate)
   const time = item.lessonTime || ''
-
   const parts = [date, day, time].filter(Boolean)
+  return parts.length ? `수업중 · ${parts.join(' ')}` : ''
+}
 
-  return parts.length ? `수업중 - ${parts.join(' ')}` : ''
+const CATEGORY_ACCENT = {
+  '예약':   '#2563eb',
+  '문의':   '#d97706',
+  '수업중': '#16a34a',
+  '등록':   '#16a34a',
+}
+
+const CHIP_STYLE = {
+  '예약':   { bg: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe' },
+  '문의':   { bg: '#fff7ed', color: '#d97706', borderColor: '#fed7aa' },
+  '수업중': { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
+  '등록':   { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
 }
 
 export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
@@ -66,72 +68,85 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
   const lessonText = getLessonText(c)
   const phone = c.phone || '-'
 
+  const accentKey = c.diagResult || c.category
+  const accentColor = CATEGORY_ACCENT[accentKey] || '#d1d5db'
+  const chipStyle = CHIP_STYLE[status] || { bg: '#f3f4f6', color: '#6b7280', borderColor: '#e5e7eb' }
+
   return (
-    <article className="consult-card fade-in" onClick={onClick}>
+    <article
+      className="consult-card fade-in"
+      style={{ borderLeft: `4px solid ${accentColor}` }}
+      onClick={onClick}
+    >
       <div className="consult-card-top">
         <div className="consult-info">
           <h3>{c.name || '(이름없음)'}</h3>
-
-          <p>
+          <p className="consult-phone">
             {phone}
             {c.age ? ` · ${formatAge(c.age)}` : ''}
           </p>
-
-          <p>
-            {c.gender || ''}
-            {c.relation ? ` · ${c.relation}` : ''}
-          </p>
+          {(c.gender || c.relation) && (
+            <p className="consult-meta">
+              {[c.gender, c.relation].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </div>
 
         <div className="card-actions">
           <button
             type="button"
             className="mini-btn edit"
-            onClick={e => {
-              e.stopPropagation()
-              onEdit?.()
-            }}
+            onClick={e => { e.stopPropagation(); onEdit?.() }}
           >
             수정
           </button>
-
           <button
             type="button"
             className="mini-btn delete"
-            onClick={e => {
-              e.stopPropagation()
-              onDelete?.()
-            }}
+            onClick={e => { e.stopPropagation(); onDelete?.() }}
           >
             삭제
           </button>
         </div>
       </div>
 
-      {c.feature && <p className="consult-feature">{c.feature}</p>}
+      {c.feature && (
+        <p className="consult-feature">{c.feature}</p>
+      )}
 
-      <div className="consult-dates">
-        {c.inquiryDate && <span>📅 {fmtDate(c.inquiryDate)}</span>}
-
-        {c.diagDate && (
-          <span>
-            🔔 {fmtDate(c.diagDate)}
-            {c.diagTime ? ` ${c.diagTime}` : ''}
-          </span>
-        )}
-      </div>
-
-      <div className="consult-bottom">
-        <div className="card-bottom-status">
-          {status && <span className="status-chip">{status}</span>}
-
-          {lessonText && (
-            <span className="lesson-chip">
-              {lessonText}
+      {(c.inquiryDate || c.diagDate) && (
+        <div className="consult-dates">
+          {c.inquiryDate && <span>📅 {fmtDate(c.inquiryDate)}</span>}
+          {c.diagDate && (
+            <span>
+              🔔 {fmtDate(c.diagDate)}
+              {c.diagTime ? ` ${c.diagTime}` : ''}
             </span>
           )}
         </div>
-      </div>
+      )}
+
+      {(status || lessonText) && (
+        <div className="consult-bottom">
+          <div className="card-bottom-status">
+            {status && (
+              <span
+                className="status-chip"
+                style={{
+                  background: chipStyle.bg,
+                  color: chipStyle.color,
+                  border: `1px solid ${chipStyle.borderColor}`,
+                }}
+              >
+                {status}
+              </span>
+            )}
+            {lessonText && (
+              <span className="lesson-chip">{lessonText}</span>
+            )}
+          </div>
+        </div>
+      )}
     </article>
   )
 }

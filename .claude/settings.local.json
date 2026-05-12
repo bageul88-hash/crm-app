@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite *)",
+      "Bash(npm run *)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files/Microsoft/**)",
+      "Read(//c/Users/user/**)",
+      "Bash(export JAVA_HOME=\"/c/Users/user/.jdks/jbr-17.0.14\")",
+      "Bash(./gradlew assembleDebug)",
+      "Bash($ADB *)",
+      "Bash(node node_modules/vite/bin/vite.js build)",
+      "Bash(npx cap *)",
+      "Bash(/c/Users/user/AppData/Local/Android/Sdk/platform-tools/adb.exe *)",
+      "Bash(Get-ChildItem -Path \"e:\\\\crm-app\" -Recurse -Depth 2)",
+      "Bash(Select-Object -Property Mode, Name, FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npm --version)",
+      "Bash(railway --version)",
+      "Bash(npm install *)",
+      "PowerShell(Get-Command adb -ErrorAction SilentlyContinue; & \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Microsoft\\\\jdk-21.0.11.10-hotspot\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location \"e:\\\\crm-app\\\\android\"; .\\\\gradlew.bat assembleRelease 2>&1 | Select-String -Pattern \"BUILD|FAILED|ERROR\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"e:\\\\crm-app\\\\android\\\\app\\\\src\\\\main\\\\assets\")",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Microsoft\\\\jdk-21.0.11.10-hotspot\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location \"e:\\\\crm-app\\\\android\"; .\\\\gradlew.bat assembleDebug 2>&1 | Select-String -Pattern \"BUILD|FAILED|ERROR|assembleDebug\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Microsoft\\\\jdk-21.0.11.10-hotspot\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location \"e:\\\\crm-app\\\\android\"; .\\\\gradlew.bat assembleDebug 2>&1 | Select-String -Pattern \"BUILD|FAILED|ERROR\")",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb -s ce10171a82ba18070d7e uninstall com.pentwo.crmapp 2>&1)"
+    ]
+  }
+}

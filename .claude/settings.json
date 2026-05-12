@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push *)",
+      "Bash(java -version)",
+      "PowerShell(java -version 2>&1)",
+      "PowerShell($env:JAVA_HOME)",
+      "PowerShell($env:ANDROID_HOME)",
+      "PowerShell($env:ANDROID_SDK_ROOT)",
+      "PowerShell(cmd /c \"dir /b `\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr`\" 2>&1\")",
+      "PowerShell(cmd /c \"dir /b `\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Android\\\\Sdk`\" 2>&1\")",
+      "PowerShell(cmd /c \"where java 2>&1\")",
+      "PowerShell(cmd /c \"dir /b `\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin`\" 2>&1\")",
+      "PowerShell(cmd /c \"dir /b `\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\build-tools`\" 2>&1\")",
+      "PowerShell(cmd /c \"dir /b `\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platforms`\" 2>&1\")",
+      "PowerShell(winget --version 2>&1)",
+      "PowerShell(winget install Microsoft.OpenJDK.21 --accept-source-agreements --accept-package-agreements 2>&1)",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\\\\Android\\\\Android Studio\" -Directory -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"C:\\\\Program Files\" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"java|jdk|jre\" } | Select-Object FullName)",
+      "PowerShell(head -30)",
+      "PowerShell(ls \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\" | Where-Object { $_.Name -eq \"java.exe\" } | Format-Table FullName)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; java -version 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio2\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; & \"$env:JAVA_HOME\\\\bin\\\\java.exe\" -version 2>&1)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio2\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location e:\\\\crm-app\\\\android; .\\\\gradlew assembleDebug 2>&1)",
+      "PowerShell(adb devices)",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; if \\(Test-Path $adb\\) { & $adb devices } else { \"adb not found at $adb\" })",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb -s ce10171a82ba18070d7e uninstall com.pentwo.crmapp; & $adb -s ce10171a82ba18070d7e install \"e:\\\\crm-app\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\debug\\\\app-debug.apk\")",
+      "PowerShell(Copy-Item -Recurse \"e:\\\\crm-app\\\\dist\" \"e:\\\\crm-app\\\\android\\\\app\\\\src\\\\main\\\\assets\\\\public\")",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio2\\\\jbr\"; $env:PATH = \"$env:JAVA_HOME\\\\bin;$env:PATH\"; Set-Location e:\\\\crm-app\\\\android; .\\\\gradlew assembleDebug 2>&1 | Select-String -Pattern \"BUILD|ERROR|FAILED|error:\" | Format-Table -Wrap)"
+    ]
+  }
+}

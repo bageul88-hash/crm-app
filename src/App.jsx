@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useCallback } from 'react'
 import { useApp } from './context/AppContext'
 
@@ -8,6 +8,7 @@ import SchedulePage from './pages/SchedulePage'
 import SMSPage from './pages/SMSPage'
 import DetailPage from './pages/DetailPage'
 import AttendancePage from './pages/AttendancePage'
+import BranchPage from './pages/BranchPage'
 import LoginPage from './pages/LoginPage'
 
 import CallBanner from './components/CallBanner'
@@ -16,6 +17,8 @@ import { useSmsAttendance } from './hooks/useSmsAttendance'
 
 export default function App() {
   const { load, currentUser, logout, saveError } = useApp()
+  const navigate = useNavigate()
+  const isAdmin = currentUser?.role === 'admin'
   const [smsToast, setSmsToast] = useState(null)
 
   useEffect(() => {
@@ -70,6 +73,15 @@ export default function App() {
         </div>
 
         <div className="header-actions">
+          {isAdmin && (
+            <button
+              type="button"
+              className="header-btn header-btn-primary"
+              onClick={() => navigate('/branch')}
+            >
+              지사관리
+            </button>
+          )}
           <button type="button" className="header-btn" onClick={logout}>
             로그아웃
           </button>
@@ -87,6 +99,7 @@ export default function App() {
           <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/sms" element={<SMSPage />} />
           <Route path="/attendance" element={<AttendancePage />} />
+          <Route path="/branch" element={<BranchPage />} />
           <Route path="/detail/:id" element={<DetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

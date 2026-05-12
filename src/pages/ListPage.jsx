@@ -2,33 +2,24 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { CATEGORY_TABS } from '../api/sheets'
-import { BRANCHES } from '../auth/users'
 import ConsultCard from '../components/ConsultCard'
 
 export default function ListPage() {
-  const { consults, loading, error, remove, currentUser } = useApp()
+  const { consults, loading, error, remove } = useApp()
   const navigate = useNavigate()
-  const isAdmin = currentUser?.role === 'admin'
   const [tab, setTab] = useState('전체')
   const [search, setSearch] = useState('')
-  const [branchFilter, setBranchFilter] = useState('전체')
-
-  // 관리자: 지사 필터 적용 / 지사 계정: 이미 context에서 자기 지사만 내려옴
-  const branchFiltered = useMemo(() => {
-    if (!isAdmin || branchFilter === '전체') return consults
-    return consults.filter(c => c.branchId === branchFilter)
-  }, [consults, isAdmin, branchFilter])
 
   const counts = useMemo(() => {
-    const map = { '전체': branchFiltered.length }
+    const map = { '전체': consults.length }
     for (const t of CATEGORY_TABS.slice(1)) {
-      map[t] = branchFiltered.filter(c => c.category === t).length
+      map[t] = consults.filter(c => c.category === t).length
     }
     return map
-  }, [branchFiltered])
+  }, [consults])
 
   const filtered = useMemo(() => {
-    let list = tab === '전체' ? branchFiltered : branchFiltered.filter(c => c.category === tab)
+    let list = tab === '전체' ? consults : consults.filter(c => c.category === tab)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(c =>
@@ -37,7 +28,7 @@ export default function ListPage() {
       )
     }
     return list
-  }, [branchFiltered, tab, search])
+  }, [consults, tab, search])
 
   const handleDelete = async consult => {
     if (!window.confirm(`"${consult.name}" 상담을 삭제할까요?`)) return
@@ -54,21 +45,6 @@ export default function ListPage() {
           onChange={e => setSearch(e.target.value)}
         />
       </div>
-
-      {isAdmin && (
-        <div className="tab-wrap" style={{ paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
-          {[{ id: '전체', name: '전체' }, ...BRANCHES].map(b => (
-            <button
-              key={b.id}
-              type="button"
-              className={`category-chip${branchFilter === b.id ? ' active' : ''}`}
-              onClick={() => setBranchFilter(b.id)}
-            >
-              {b.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className="tab-wrap">
         {CATEGORY_TABS.map(t => (
