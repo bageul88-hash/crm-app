@@ -27,7 +27,16 @@ export const FIELD_MAP = {
   lessonTime: 19,
 }
 
-export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중']
+export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '핑크', '환불', '미등록']
+
+export function filterByTab(list, tab) {
+  if (tab === '전체') return list
+  if (tab === '수업중') return list.filter(c => c.category === '수업중' || c.diagResult === '등록')
+  if (tab === '핑크')   return list.filter(c => c.diagResult === '핑크')
+  if (tab === '환불')   return list.filter(c => c.diagResult === '환불')
+  if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
+  return list.filter(c => c.category === tab)
+}
 
 export const OPTIONS = {
   category: ['예약', '문의', '수업중'],

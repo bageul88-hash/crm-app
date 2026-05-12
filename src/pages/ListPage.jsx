@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { CATEGORY_TABS } from '../api/sheets'
+import { CATEGORY_TABS, filterByTab } from '../api/sheets'
 import ConsultCard from '../components/ConsultCard'
 
 export default function ListPage() {
@@ -13,13 +13,13 @@ export default function ListPage() {
   const counts = useMemo(() => {
     const map = { '전체': consults.length }
     for (const t of CATEGORY_TABS.slice(1)) {
-      map[t] = consults.filter(c => c.category === t).length
+      map[t] = filterByTab(consults, t).length
     }
     return map
   }, [consults])
 
   const filtered = useMemo(() => {
-    let list = tab === '전체' ? consults : consults.filter(c => c.category === tab)
+    let list = filterByTab(consults, tab)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(c =>

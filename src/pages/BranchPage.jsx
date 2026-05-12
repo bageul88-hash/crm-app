@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { CATEGORY_TABS } from '../api/sheets'
+import { CATEGORY_TABS, filterByTab } from '../api/sheets'
 import { BRANCHES } from '../auth/users'
 import ConsultCard from '../components/ConsultCard'
 
@@ -21,13 +21,13 @@ export default function BranchPage() {
   const counts = useMemo(() => {
     const map = { '전체': branchConsults.length }
     for (const t of CATEGORY_TABS.slice(1)) {
-      map[t] = branchConsults.filter(c => c.category === t).length
+      map[t] = filterByTab(branchConsults, t).length
     }
     return map
   }, [branchConsults])
 
   const filtered = useMemo(() => {
-    let list = tab === '전체' ? branchConsults : branchConsults.filter(c => c.category === tab)
+    let list = filterByTab(branchConsults, tab)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(c =>
