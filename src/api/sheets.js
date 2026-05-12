@@ -53,7 +53,7 @@ export const OPTIONS = {
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
 }
 
-function cleanPhone(value) {
+export function cleanPhone(value) {
   let phone = String(value || '')
     .replace(/^'/, '')
     .replace(/[^0-9]/g, '')

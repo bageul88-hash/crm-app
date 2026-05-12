@@ -15,7 +15,7 @@ import BottomNav from './components/BottomNav'
 import { useSmsAttendance } from './hooks/useSmsAttendance'
 
 export default function App() {
-  const { load, currentUser, logout } = useApp()
+  const { load, currentUser, logout, saveError } = useApp()
   const [smsToast, setSmsToast] = useState(null)
 
   useEffect(() => {
@@ -106,6 +106,18 @@ export default function App() {
         }}>
           <span>✅</span>
           <span>{smsToast} 학생 등원 자동 체크</span>
+        </div>
+      )}
+
+      {saveError && (
+        <div style={{
+          position: 'fixed', bottom: smsToast ? 140 : 80, left: '50%', transform: 'translateX(-50%)',
+          background: '#dc2626', color: '#fff', borderRadius: 12,
+          padding: '12px 20px', fontSize: 14, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
+          whiteSpace: 'nowrap',
+        }}>
+          {saveError}
         </div>
       )}
     </div>

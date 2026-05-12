@@ -167,7 +167,6 @@ export default function InputPage() {
   const isEdit = Boolean(id)
 
   const [form, setForm] = useState(EMPTY)
-  const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [smsConsult, setSmsConsult] = useState(null)
 
@@ -279,7 +278,7 @@ export default function InputPage() {
     setMsg('')
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     const phoneText = cleanPhone(form.phone)
 
     if (!phoneText) {
@@ -297,61 +296,52 @@ export default function InputPage() {
     const lessonVisible = shouldShowLessonFields(form)
     const lessonDate = lessonVisible ? normalizeDate(form.lessonDate) : ''
 
-    setSaving(true)
-    setMsg('')
+    const payload = {
+      category: form.category || '',
+      inquiryDate,
+      inquiryDay: getDay(inquiryDate),
 
-    try {
-      const payload = {
-        category: form.category || '',
-        inquiryDate,
-        inquiryDay: getDay(inquiryDate),
+      age: form.age || '',
+      gender: form.gender || '',
+      name: form.name || '',
 
-        age: form.age || '',
-        gender: form.gender || '',
-        name: form.name || '',
+      diagDate,
+      diagDay: getDay(diagDate),
+      diagTime: normalizeTime(form.diagTime),
+      diagResult: form.diagResult || '',
 
-        diagDate,
-        diagDay: getDay(diagDate),
-        diagTime: normalizeTime(form.diagTime),
-        diagResult: form.diagResult || '',
+      relation: relationValue || '',
 
-        relation: relationValue || '',
+      lessonDate,
+      lessonDay: lessonDate ? getDay(lessonDate) : '',
+      lessonTime: lessonVisible ? normalizeTime(form.lessonTime) : '',
 
-        lessonDate,
-        lessonDay: lessonDate ? getDay(lessonDate) : '',
-        lessonTime: lessonVisible ? normalizeTime(form.lessonTime) : '',
-
-        feature: form.feature || '',
-        phone: phoneText,
-      }
-
-      if (isEdit) {
-        await update({ ...payload, id: form.id || id })
-        setMsg('✅ 수정되었습니다')
-        setTimeout(() => navigate('/'), 800)
-      } else {
-        const exists = consults.some(
-          c =>
-            cleanPhone(c.phone) === phoneText &&
-            String(c.name || '').trim() === String(payload.name || '').trim()
-        )
-
-        if (exists) {
-          setMsg('❌ 이미 등록된 상담입니다. 기존 상담을 수정해주세요.')
-          setSaving(false)
-          return
-        }
-
-        await add(payload)
-        setSmsConsult(payload)
-        reset()
-      }
-    } catch (e) {
-      console.error(e)
-      setMsg('❌ ' + (e.message || '저장 실패'))
-    } finally {
-      setSaving(false)
+      feature: form.feature || '',
+      phone: phoneText,
     }
+
+    if (isEdit) {
+      // 낙관적 수정: UI 즉시 반영 후 백그라운드 저장
+      update({ ...payload, id: form.id || id })
+      navigate('/')
+      return
+    }
+
+    const exists = consults.some(
+      c =>
+        cleanPhone(c.phone) === phoneText &&
+        String(c.name || '').trim() === String(payload.name || '').trim()
+    )
+
+    if (exists) {
+      setMsg('❌ 이미 등록된 상담입니다. 기존 상담을 수정해주세요.')
+      return
+    }
+
+    // 낙관적 추가: UI 즉시 반영 후 백그라운드 저장
+    add(payload)
+    setSmsConsult(payload)
+    reset()
   }
 
   return (
@@ -542,9 +532,8 @@ export default function InputPage() {
           className="btn btn-primary"
           style={{ flex: 2 }}
           onClick={handleSubmit}
-          disabled={saving}
         >
-          {saving ? '저장 중...' : isEdit ? '수정 완료' : '저장 후 문자보내기'}
+          {isEdit ? '수정 완료' : '저장 후 문자보내기'}
         </button>
       </div>
 

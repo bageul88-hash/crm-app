@@ -3,12 +3,11 @@ import { useApp } from '../context/AppContext'
 import dayjs from 'dayjs'
 
 const TOP_TABS = ['전체', '예약', '문의', '수업중']
-const BOT_TABS = ['등록', '미등록', '문의만', '환불', '기타', '핑크']
+const BOT_TABS = ['등록', '미등록', '환불', '기타', '핑크']
 
 const RESULT_COLOR = {
   등록: 'var(--green)',
   미등록: 'var(--orange)',
-  문의만: 'var(--purple)',
   환불: 'var(--red)',
   기타: 'var(--accent)',
   핑크: 'var(--pink)',
