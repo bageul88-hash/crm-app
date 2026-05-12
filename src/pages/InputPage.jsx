@@ -254,6 +254,10 @@ export default function InputPage() {
         next.customRelation = ''
       }
 
+      if (key === 'diagResult' && val === '등록') {
+        next.category = '수업중'
+      }
+
       const lessonVisible = shouldShowLessonFields(next)
 
       if ((key === 'category' || key === 'diagResult') && !lessonVisible) {
