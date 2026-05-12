@@ -70,6 +70,7 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
 
   const accentKey = c.diagResult || c.category
   const accentColor = CATEGORY_ACCENT[accentKey] || '#d1d5db'
+  const displayStatus = status === '등록' ? '수업중' : status
   const chipStyle = CHIP_STYLE[status] || { bg: '#f3f4f6', color: '#6b7280', borderColor: '#e5e7eb' }
 
   return (
@@ -138,7 +139,7 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
                   border: `1px solid ${chipStyle.borderColor}`,
                 }}
               >
-                {status}
+                {displayStatus}
               </span>
             )}
             {lessonText && (
