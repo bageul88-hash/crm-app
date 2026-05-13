@@ -61,10 +61,7 @@ export default function App() {
       <header className="app-header">
         <div className="brand-wrap">
           <div className="brand-logo">C</div>
-          <div className="brand-title">
-            <strong>상담</strong>
-            <strong>CRM</strong>
-          </div>
+          <span className="brand-title">상담CRM</span>
         </div>
 
         <div className="user-box">
@@ -76,11 +73,10 @@ export default function App() {
           {isAdmin && (
             <button
               type="button"
-              className="header-btn"
+              className="header-btn header-btn-primary"
               onClick={() => navigate('/branch')}
-              style={{ lineHeight: 1.2, textAlign: 'center' }}
             >
-              지사<br />관리
+              지사관리
             </button>
           )}
           <button type="button" className="header-btn" onClick={logout}>

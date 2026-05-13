@@ -4,11 +4,15 @@ import { useApp } from '../context/AppContext'
 import { CATEGORY_TABS, filterByTab } from '../api/sheets'
 import ConsultCard from '../components/ConsultCard'
 
+const MAIN_TABS = ['전체', '예약', '문의', '수업중']
+const SUB_TABS = CATEGORY_TABS.filter(t => !MAIN_TABS.includes(t))
+
 export default function ListPage() {
   const { consults, loading, error, remove } = useApp()
   const navigate = useNavigate()
   const [tab, setTab] = useState('전체')
   const [search, setSearch] = useState('')
+  const [showSubTabs, setShowSubTabs] = useState(false)
 
   const counts = useMemo(() => {
     const map = { '전체': consults.length }
@@ -35,6 +39,11 @@ export default function ListPage() {
     await remove(consult.id)
   }
 
+  const handleTabClick = t => {
+    setTab(t)
+    if (SUB_TABS.includes(t)) setShowSubTabs(true)
+  }
+
   return (
     <div className="list-page">
       <div className="search-box">
@@ -46,17 +55,42 @@ export default function ListPage() {
         />
       </div>
 
-      <div className="tab-wrap">
-        {CATEGORY_TABS.map(t => (
+      <div className="tab-area">
+        <div className="tab-row">
+          {MAIN_TABS.map(t => (
+            <button
+              key={t}
+              type="button"
+              className={`category-chip${tab === t ? ' active' : ''}`}
+              onClick={() => handleTabClick(t)}
+            >
+              {t}<span>{counts[t] ?? 0}</span>
+            </button>
+          ))}
           <button
-            key={t}
             type="button"
-            className={`category-chip${tab === t ? ' active' : ''}`}
-            onClick={() => setTab(t)}
+            className={`tab-toggle-btn${showSubTabs ? ' open' : ''}`}
+            onClick={() => setShowSubTabs(p => !p)}
+            title={showSubTabs ? '탭 접기' : '더 보기'}
           >
-            {t}<span>{counts[t] ?? 0}</span>
+            {showSubTabs ? '▲' : '▼'}
           </button>
-        ))}
+        </div>
+
+        {showSubTabs && (
+          <div className="tab-row tab-row-sub">
+            {SUB_TABS.map(t => (
+              <button
+                key={t}
+                type="button"
+                className={`category-chip${tab === t ? ' active' : ''}`}
+                onClick={() => handleTabClick(t)}
+              >
+                {t}<span>{counts[t] ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="list-divider" />

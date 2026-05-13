@@ -77,7 +77,7 @@ button { cursor: pointer; }
   font-size: 15px;
   font-weight: 900;
 }
-.brand-title { display: flex; flex-direction: column; line-height: 1.05; font-size: 14px; letter-spacing: -0.04em; }
+.brand-title { font-size: 14px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; white-space: nowrap; }
 
 .user-box { text-align: center; line-height: 1.25; font-size: 12px; color: var(--text); flex-shrink: 0; }
 .user-box span { display: block; color: var(--text2); font-size: 11px; }
@@ -91,13 +91,13 @@ button { cursor: pointer; }
   font-size: 12px;
   font-weight: 700;
 }
-.header-btn { padding: 8px 10px; }
+.header-btn { height: 32px; padding: 0 10px; display: inline-flex; align-items: center; white-space: nowrap; }
 .header-btn-primary {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent2);
 }
-.refresh-btn { width: 36px; height: 36px; background: #fff; font-size: 18px; line-height: 1; }
+.refresh-btn { width: 32px; height: 32px; background: #fff; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 
 .app-main { flex: 1; overflow-y: auto; padding-bottom: 78px; }
 
@@ -125,11 +125,49 @@ button { cursor: pointer; }
 }
 .search-box input::placeholder { color: var(--text3); }
 
+.tab-area { padding: 8px 0 4px; }
+
+.tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 0;
+  align-items: center;
+}
+
+.tab-row-sub {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border2);
+}
+
+.tab-toggle-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: var(--text3);
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+.tab-toggle-btn.open {
+  background: #eff6ff;
+  border-color: #60a5fa;
+  color: var(--accent);
+}
+
 .tab-wrap {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  padding: 10px 0 7px;
+  gap: 6px;
+  padding: 8px 0 6px;
+  justify-content: center;
 }
 .category-chip {
   min-height: 26px;
