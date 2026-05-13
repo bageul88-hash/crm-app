@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import dayjs from 'dayjs'
 
 const TOP_TABS = ['전체', '예약', '문의', '수업중']
-const BOT_TABS = ['등록', '미등록', '환불', '기타', '핑크']
+const BOT_TABS = ['등록', '미등록', '환불', '연결', '핑크']
 
 const RESULT_COLOR = {
   등록: 'var(--green)',
@@ -212,6 +212,30 @@ ${schedule}
 한신인터밸리24 3층 315호`
   }
 
+  if (templateKey === 'classing') {
+    return `참바른글씨
+첫수업 축하드립니다.
+${name} 학생의 수업일정
+
+기초-24회차(6개월)
+집필
+자세
+손의힘
+자.모음 조합
+
+마무리-24회차(6개월)
+줄의 높낮이
+글씨크기 일관성
+띄어쓰기
+문장쓰기
+영쓰기
+숫자쓰기
+
+성심을 다해 열심히 지도하겠습니다.
+
+🌐 pentwo.com`
+  }
+
   if (templateKey === 'franchise') {
     return `♤ 참바른글씨 가맹 문의 
 
@@ -276,7 +300,11 @@ export default function SMSPage() {
     let list = topFiltered
 
     if (botTab) {
-      list = list.filter(c => c.diagResult === botTab)
+      if (botTab === '등록') {
+        list = list.filter(c => c.diagResult === '등록' && c.category !== '수업중')
+      } else {
+        list = list.filter(c => c.diagResult === botTab)
+      }
     }
 
     if (daysBefore) {
@@ -299,7 +327,11 @@ export default function SMSPage() {
     map['수업중'] = consults.filter(c => c.category === '수업중' || c.diagResult === '수업중').length
 
     BOT_TABS.forEach(t => {
-      map[t] = topFiltered.filter(c => c.diagResult === t).length
+      if (t === '등록') {
+        map[t] = topFiltered.filter(c => c.diagResult === '등록' && c.category !== '수업중').length
+      } else {
+        map[t] = topFiltered.filter(c => c.diagResult === t).length
+      }
     })
 
     return map
