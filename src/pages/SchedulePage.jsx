@@ -76,8 +76,8 @@ export default function SchedulePage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {list.map((c, i) => (
-              <div key={i} className="card" style={{ cursor: 'pointer' }}
+            {list.map(c => (
+              <div key={c.id} className="card" style={{ cursor: 'pointer' }}
                 onClick={() => navigate(`/detail/${c.id}`)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
@@ -125,8 +125,8 @@ export default function SchedulePage() {
             margin: '24px 0 12px',
           }}>지난 예약</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0.6 }}>
-            {past.map((c, i) => (
-              <div key={i} className="card" style={{ cursor: 'pointer' }}
+            {past.map(c => (
+              <div key={c.id} className="card" style={{ cursor: 'pointer' }}
                 onClick={() => navigate(`/detail/${c.id}`)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <div>

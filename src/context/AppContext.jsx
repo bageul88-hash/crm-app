@@ -78,6 +78,17 @@ export function AppProvider({ children }) {
 
     overrides[userId] = newPw
     localStorage.setItem(PW_OVERRIDES_KEY, JSON.stringify(overrides))
+
+    // 로그인 유지 정보도 새 비밀번호로 업데이트 (새로고침 시 로그아웃 방지)
+    try {
+      const savedRaw = localStorage.getItem(CREDS_KEY)
+      if (savedRaw) {
+        const saved = JSON.parse(savedRaw)
+        if (saved.id === userId) {
+          localStorage.setItem(CREDS_KEY, JSON.stringify({ id: userId, password: newPw }))
+        }
+      }
+    } catch {}
   }, [])
 
   const logout = useCallback(() => {
