@@ -27,7 +27,7 @@ export const FIELD_MAP = {
   lessonTime: 19,
 }
 
-export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '펑크', '환불', '미등록', '연결', '가맹']
+export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '핑크', '환불', '미등록', '연결', '가맹']
 
 const DIAG_ONLY_TABS = ['펑크', '환불', '미등록', '연결', '가맹']
 

@@ -76,10 +76,11 @@ export default function App() {
           {isAdmin && (
             <button
               type="button"
-              className="header-btn header-btn-primary"
+              className="header-btn"
               onClick={() => navigate('/branch')}
+              style={{ lineHeight: 1.2, textAlign: 'center' }}
             >
-              지사관리
+              지사<br />관리
             </button>
           )}
           <button type="button" className="header-btn" onClick={logout}>
