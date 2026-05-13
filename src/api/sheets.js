@@ -27,18 +27,19 @@ export const FIELD_MAP = {
   lessonTime: 19,
 }
 
-export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '핑크', '환불', '미등록', '연결']
+export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '펑크', '환불', '미등록', '연결', '가맹']
 
-const DIAG_ONLY_TABS = ['핑크', '환불', '미등록', '연결', '기타']
+const DIAG_ONLY_TABS = ['펑크', '환불', '미등록', '연결', '가맹']
 
 export function filterByTab(list, tab) {
   if (tab === '전체') return list
   if (tab === '수업중') return list.filter(c => c.category === '수업중' || c.diagResult === '등록')
-  if (tab === '핑크')   return list.filter(c => c.diagResult === '핑크')
+  if (tab === '펑크')   return list.filter(c => c.diagResult === '펑크')
   if (tab === '환불')   return list.filter(c => c.diagResult === '환불')
   if (tab === '수업종료') return list.filter(c => c.category === '수업종료')
   if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
   if (tab === '연결')   return list.filter(c => c.diagResult === '연결')
+  if (tab === '가맹')   return list.filter(c => c.diagResult === '가맹' || c.category === '가맹')
   if (tab === '예약')   return list.filter(c => c.category === '예약' && !DIAG_ONLY_TABS.includes(c.diagResult))
   return list.filter(c => c.category === tab)
 }
@@ -63,7 +64,7 @@ export const OPTIONS = {
     '오후 8:00', '오후 8:30',
     '오후 9:00',
   ],
-  diagResult: ['등록', '미등록', '연결', '핑크', '환불', '기타'],
+  diagResult: ['등록', '미등록', '연결', '펑크', '환불', '가맹'],
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
 }
 
@@ -92,7 +93,7 @@ function normalizeCategory(value) {
 
 function normalizeDiagResult(value) {
   if (value === '문의만') return '연결'
-  if (value === '불가') return '기타'
+  if (value === '불가') return '가맹'
   if (value === '체결') return '환불'
   return value || ''
 }

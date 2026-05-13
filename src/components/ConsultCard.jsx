@@ -53,6 +53,8 @@ const CATEGORY_ACCENT = {
   '문의':   '#d97706',
   '수업중': '#16a34a',
   '등록':   '#16a34a',
+  '펑크':   '#db2777',
+  '가맹':   '#7c3aed',
 }
 
 const CHIP_STYLE = {
@@ -60,6 +62,8 @@ const CHIP_STYLE = {
   '문의':   { bg: '#fff7ed', color: '#d97706', borderColor: '#fed7aa' },
   '수업중': { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
   '등록':   { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
+  '펑크':   { bg: '#fdf2f8', color: '#db2777', borderColor: '#fbcfe8' },
+  '가맹':   { bg: '#f5f3ff', color: '#7c3aed', borderColor: '#ddd6fe' },
 }
 
 export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
