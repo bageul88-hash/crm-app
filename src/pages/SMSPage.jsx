@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import dayjs from 'dayjs'
 
-const TOP_TABS = ['전체', '예약', '문의', '수업중']
+const TOP_TABS = ['전체', '예약', '문의', '수업중', '수업종료']
 const BOT_TABS = ['등록', '미등록', '환불', '연결', '핑크']
 
 const RESULT_COLOR = {
@@ -291,6 +291,8 @@ export default function SMSPage() {
       list = list.filter(c => c.category === '문의')
     } else if (topTab === '수업중') {
       list = list.filter(c => c.category === '수업중' || c.diagResult === '수업중')
+    } else if (topTab === '수업종료') {
+      list = list.filter(c => c.category === '수업종료')
     }
 
     return list
@@ -325,6 +327,7 @@ export default function SMSPage() {
     map['예약'] = consults.filter(isOnlyReserved).length
     map['문의'] = consults.filter(c => c.category === '문의').length
     map['수업중'] = consults.filter(c => c.category === '수업중' || c.diagResult === '수업중').length
+    map['수업종료'] = consults.filter(c => c.category === '수업종료').length
 
     BOT_TABS.forEach(t => {
       if (t === '등록') {

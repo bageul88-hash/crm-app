@@ -27,7 +27,7 @@ export const FIELD_MAP = {
   lessonTime: 19,
 }
 
-export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '핑크', '환불', '미등록', '연결']
+export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '핑크', '환불', '미등록', '연결']
 
 const DIAG_ONLY_TABS = ['핑크', '환불', '미등록', '연결', '기타']
 
@@ -36,6 +36,7 @@ export function filterByTab(list, tab) {
   if (tab === '수업중') return list.filter(c => c.category === '수업중' || c.diagResult === '등록')
   if (tab === '핑크')   return list.filter(c => c.diagResult === '핑크')
   if (tab === '환불')   return list.filter(c => c.diagResult === '환불')
+  if (tab === '수업종료') return list.filter(c => c.category === '수업종료')
   if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
   if (tab === '연결')   return list.filter(c => c.diagResult === '연결')
   if (tab === '예약')   return list.filter(c => c.category === '예약' && !DIAG_ONLY_TABS.includes(c.diagResult))
@@ -43,7 +44,7 @@ export function filterByTab(list, tab) {
 }
 
 export const OPTIONS = {
-  category: ['예약', '문의', '수업중'],
+  category: ['예약', '문의', '수업중', '수업종료'],
   age: Array.from({ length: 75 }, (_, i) => `${i + 6}세`),
   gender: ['남', '여'],
   diagTime: [
