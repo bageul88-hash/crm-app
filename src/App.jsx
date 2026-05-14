@@ -60,26 +60,31 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <div className="brand-wrap">
-          <div className="brand-logo">C</div>
-          <span className="brand-title">상담CRM</span>
-        </div>
-
-        <div className="user-box">
-          <strong>{currentUser?.branchName || currentUser?.name || '본사'}</strong>
-          <span>{currentUser?.role === 'admin' ? '관리자' : currentUser?.name}</span>
+          <img src="/logo.png" alt="로고" className="brand-logo-img" />
+          <div className="brand-text-group">
+            <div className="brand-title">
+              <strong>상담</strong>
+              <strong>CRM</strong>
+            </div>
+            <div className="user-box">
+              <strong>{currentUser?.branchName || currentUser?.name || '본사'}</strong>
+              <span>{currentUser?.role === 'admin' ? '관리자' : currentUser?.name}</span>
+            </div>
+          </div>
         </div>
 
         <div className="header-actions">
           {isAdmin && (
             <button
               type="button"
-              className="header-btn header-btn-primary"
+              className="header-btn header-btn-branch"
               onClick={() => navigate('/branch')}
             >
-              지사관리
+              <span>지사</span>
+              <span>관리</span>
             </button>
           )}
-          <button type="button" className="header-btn" onClick={logout}>
+          <button type="button" className="header-btn header-btn-logout" onClick={logout}>
             로그아웃
           </button>
           <button type="button" className="refresh-btn" onClick={load} title="새로고침">
