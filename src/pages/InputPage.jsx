@@ -224,6 +224,10 @@ export default function InputPage() {
     }
   }, [location.state])
 
+  useEffect(() => {
+    if (isEdit) window.scrollTo(0, 0)
+  }, [isEdit])
+
   const set = (key, val) => {
     setForm(prev => {
       const next = {
@@ -327,7 +331,7 @@ export default function InputPage() {
     if (isEdit) {
       // 낙관적 수정: UI 즉시 반영 후 백그라운드 저장
       update({ ...payload, id: form.id || id })
-      navigate('/')
+      navigate('/', { replace: true })
       return
     }
 
