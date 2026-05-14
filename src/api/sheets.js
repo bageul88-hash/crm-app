@@ -34,7 +34,7 @@ const DIAG_ONLY_TABS = ['펑크', '환불', '미등록', '연결', '가맹']
 export function filterByTab(list, tab) {
   if (tab === '전체') return list
   if (tab === '수업중') return list.filter(c => (c.category === '수업중' || c.diagResult === '등록') && c.category !== '수업종료')
-  if (tab === '펑크')   return list.filter(c => c.diagResult === '펑크')
+  if (tab === '펑크')   return list.filter(c => c.diagResult === '펑크' || c.diagResult === '핑크' || c.category === '핑크' || c.category === '펑크')
   if (tab === '환불')   return list.filter(c => c.diagResult === '환불')
   if (tab === '수업종료') return list.filter(c => c.category === '수업종료')
   if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
