@@ -46,40 +46,19 @@ export default function ListPage() {
 
   return (
     <div className="list-page">
-      <div className="search-box">
-        <span>🔍</span>
-        <input
-          placeholder="이름 또는 전화번호 검색"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-
-      <div className="tab-area">
-        <div className="tab-row">
-          {MAIN_TABS.map(t => (
-            <button
-              key={t}
-              type="button"
-              className={`category-chip${tab === t ? ' active' : ''}`}
-              onClick={() => handleTabClick(t)}
-            >
-              {t}<span>{counts[t] ?? 0}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            className={`tab-toggle-btn${showSubTabs ? ' open' : ''}`}
-            onClick={() => setShowSubTabs(p => !p)}
-            title={showSubTabs ? '탭 접기' : '더 보기'}
-          >
-            {showSubTabs ? '▲' : '▼'}
-          </button>
+      <div className="list-sticky-top">
+        <div className="search-box">
+          <span>🔍</span>
+          <input
+            placeholder="이름 또는 전화번호 검색"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
 
-        {showSubTabs && (
-          <div className="tab-row tab-row-sub">
-            {SUB_TABS.map(t => (
+        <div className="tab-area">
+          <div className="tab-row">
+            {MAIN_TABS.map(t => (
               <button
                 key={t}
                 type="button"
@@ -89,41 +68,66 @@ export default function ListPage() {
                 {t}<span>{counts[t] ?? 0}</span>
               </button>
             ))}
+            <button
+              type="button"
+              className={`tab-toggle-btn${showSubTabs ? ' open' : ''}`}
+              onClick={() => setShowSubTabs(p => !p)}
+              title={showSubTabs ? '탭 접기' : '더 보기'}
+            >
+              {showSubTabs ? '▲' : '▼'}
+            </button>
+          </div>
+
+          {showSubTabs && (
+            <div className="tab-row tab-row-sub">
+              {SUB_TABS.map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`category-chip${tab === t ? ' active' : ''}`}
+                  onClick={() => handleTabClick(t)}
+                >
+                  {t}<span>{counts[t] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="list-divider" style={{ margin: '6px 0 0' }} />
+      </div>
+
+      <div className="list-scroll-body">
+        {loading && (
+          <div className="center-box">
+            <div className="spinner" />
+          </div>
+        )}
+
+        {error && !loading && (
+          <div className="error-box">{error}</div>
+        )}
+
+        {!loading && !error && filtered.length === 0 && (
+          <div className="empty-box">
+            {search ? '검색 결과가 없습니다' : '등록된 상담이 없습니다'}
+          </div>
+        )}
+
+        {!loading && filtered.length > 0 && (
+          <div className="consult-list">
+            {filtered.map(c => (
+              <ConsultCard
+                key={c.id}
+                consult={c}
+                onClick={() => navigate(`/detail/${c.id}`)}
+                onEdit={() => navigate(`/input/${c.id}`)}
+                onDelete={() => handleDelete(c)}
+              />
+            ))}
           </div>
         )}
       </div>
-
-      <div className="list-divider" />
-
-      {loading && (
-        <div className="center-box">
-          <div className="spinner" />
-        </div>
-      )}
-
-      {error && !loading && (
-        <div className="error-box">{error}</div>
-      )}
-
-      {!loading && !error && filtered.length === 0 && (
-        <div className="empty-box">
-          {search ? '검색 결과가 없습니다' : '등록된 상담이 없습니다'}
-        </div>
-      )}
-
-      {!loading && filtered.length > 0 && (
-        <div className="consult-list">
-          {filtered.map(c => (
-            <ConsultCard
-              key={c.id}
-              consult={c}
-              onClick={() => navigate(`/detail/${c.id}`)}
-              onEdit={() => navigate(`/input/${c.id}`)}
-              onDelete={() => handleDelete(c)}
-            />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
