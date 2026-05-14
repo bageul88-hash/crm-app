@@ -225,10 +225,19 @@ export async function fetchConsults() {
   const json = await getFromSheet()
   const rows = json.data || []
 
-  return rows.map((row, i) => ({
+  const result = rows.map((row, i) => ({
     id: i + 2,
     ...rowToObject(row),
   }))
+
+  const punkRows = result.filter(c =>
+    ['펑크','핑크'].includes(c.category) || ['펑크','핑크'].includes(c.diagResult)
+  )
+  console.log('[펑크/핑크 데이터]', punkRows.map(c => ({
+    id: c.id, name: c.name, category: c.category, diagResult: c.diagResult
+  })))
+
+  return result
 }
 
 export async function addConsult(data) {
