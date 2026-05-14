@@ -230,12 +230,8 @@ export async function fetchConsults() {
     ...rowToObject(row),
   }))
 
-  const punkRows = result.filter(c =>
-    ['펑크','핑크'].includes(c.category) || ['펑크','핑크'].includes(c.diagResult)
-  )
-  console.log('[펑크/핑크 데이터]', punkRows.map(c => ({
-    id: c.id, name: c.name, category: c.category, diagResult: c.diagResult
-  })))
+  result.filter(c => ['펑크','핑크'].includes(c.category) || ['펑크','핑크'].includes(c.diagResult))
+    .forEach(c => console.log('PUNK_ROW cat=' + c.category + ' diag=' + c.diagResult + ' id=' + c.id))
 
   return result
 }
