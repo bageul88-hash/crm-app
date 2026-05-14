@@ -15,6 +15,7 @@ class MainActivity : BridgeActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         registerPlugin(SmsPlugin::class.java)
+        registerPlugin(ContactsPlugin::class.java)
         super.onCreate(savedInstanceState)
 
         if (savedInstanceState == null) {
@@ -44,7 +45,9 @@ class MainActivity : BridgeActivity() {
         val permissions = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.READ_CALL_LOG,
-            Manifest.permission.RECEIVE_SMS
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.WRITE_CONTACTS
         )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

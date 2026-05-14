@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { OPTIONS } from '../api/sheets'
 import SmsModal from '../components/SmsModal'
+import { saveContactMemo } from '../hooks/useContacts'
 import dayjs from 'dayjs'
 
 const DAY_KR = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
@@ -169,6 +170,7 @@ export default function InputPage() {
   const [form, setForm] = useState(EMPTY)
   const [msg, setMsg] = useState('')
   const [smsConsult, setSmsConsult] = useState(null)
+  const [contactMsg, setContactMsg] = useState('')
 
   const showLessonFields = shouldShowLessonFields(form)
 
@@ -274,6 +276,11 @@ export default function InputPage() {
     })
   }
 
+  const showContactMsg = (text) => {
+    setContactMsg(text)
+    setTimeout(() => setContactMsg(''), 4000)
+  }
+
   const reset = () => {
     const today = dayjs().format('YYYY-MM-DD')
 
@@ -329,8 +336,10 @@ export default function InputPage() {
     }
 
     if (isEdit) {
-      // 낙관적 수정: UI 즉시 반영 후 백그라운드 저장
       update({ ...payload, id: form.id || id })
+      saveContactMemo(payload)
+        .then(r => !r?.skipped && showContactMsg('✅ 연락처 메모 업데이트 완료'))
+        .catch(() => showContactMsg('⚠️ 연락처 저장 실패'))
       navigate('/', { replace: true })
       return
     }
@@ -346,8 +355,10 @@ export default function InputPage() {
       return
     }
 
-    // 낙관적 추가: UI 즉시 반영 후 백그라운드 저장
     add(payload)
+    saveContactMemo(payload)
+      .then(r => !r?.skipped && showContactMsg('✅ 연락처 메모 저장 완료'))
+      .catch(() => showContactMsg('⚠️ 연락처 저장 실패'))
     setSmsConsult(payload)
     reset()
   }
@@ -553,6 +564,18 @@ export default function InputPage() {
             navigate('/')
           }}
         />
+      )}
+
+      {contactMsg && (
+        <div style={{
+          position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+          background: contactMsg.startsWith('✅') ? '#16a34a' : '#d97706',
+          color: '#fff', borderRadius: 12, padding: '12px 20px',
+          fontSize: 14, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          zIndex: 9999, whiteSpace: 'nowrap',
+        }}>
+          {contactMsg}
+        </div>
       )}
     </div>
   )
