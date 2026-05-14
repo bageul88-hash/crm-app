@@ -212,7 +212,7 @@ export default function ListPage() {
 
   return (
     <div className="list-page">
-      <div className="list-sticky-top">
+      <div className="list-sticky-top" style={{ position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 90 }}>
         <div className="search-box">
           <span>🔍</span>
           <input
