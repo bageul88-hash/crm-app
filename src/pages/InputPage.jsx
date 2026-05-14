@@ -225,8 +225,8 @@ export default function InputPage() {
   }, [location.state])
 
   useEffect(() => {
-    if (isEdit) window.scrollTo(0, 0)
-  }, [isEdit])
+    window.scrollTo(0, 0)
+  }, [])
 
   const set = (key, val) => {
     setForm(prev => {

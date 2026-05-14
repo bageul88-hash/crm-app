@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { CATEGORY_TABS, filterByTab } from '../api/sheets'
 import ConsultCard from '../components/ConsultCard'
@@ -123,6 +123,12 @@ function MonthlyChart({ consults, tab, onClose }) {
 export default function ListPage() {
   const { consults, loading, error, remove } = useApp()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [location.key])
+
   const [tab, setTab] = useState('전체')         // 현재 필터 탭
   const [selectedTab, setSelectedTab] = useState(null)   // 1클릭 선택(파란 테두리)
   const [chartTab, setChartTab] = useState(null)          // 2클릭 활성(하늘색 + 차트)
