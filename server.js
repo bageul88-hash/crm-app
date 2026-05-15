@@ -16,3 +16,9 @@ app.get('*', (_req, res) => {
 app.listen(PORT, () => {
   console.log(`CRM server listening on port ${PORT}`)
 })
+
+// Render 슬립 방지 — 5분마다 자기 자신에게 ping
+const SELF_URL = 'https://crm-app-sj7m.onrender.com'
+setInterval(() => {
+  fetch(SELF_URL).catch(() => {})
+}, 5 * 60 * 1000)
