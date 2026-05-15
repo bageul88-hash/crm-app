@@ -23,24 +23,14 @@ class CallStateService : Service() {
     private var isFirstState = true
     private var lastNotificationTime = 0L
 
-    private val channelId = "crm_call_channel"
+    private val callChannelId = "crm_call_channel"
+    private val serviceChannelId = "crm_call_service"
 
     override fun onCreate() {
         super.onCreate()
 
-        createNotificationChannel()
-
-        // Android 8.0+: startForegroundService()로 시작된 서비스는
-        // 5초 이내에 반드시 startForeground()를 호출해야 함
-        val serviceNotification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("CRM 통화 감지 중")
-            .setContentText("통화 종료 시 상담 등록 알림이 표시됩니다.")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            .build()
-
-        startForeground(1, serviceNotification)
+        createNotificationChannels()
+        startForegroundNotification()
 
         telephonyManager =
             getSystemService(TELEPHONY_SERVICE) as TelephonyManager
@@ -112,6 +102,25 @@ class CallStateService : Service() {
             }
         }
 
+    private fun startForegroundNotification() {
+        val notification =
+            NotificationCompat.Builder(
+                this,
+                serviceChannelId
+            )
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("상담 CRM 실행 중")
+                .setContentText("통화 종료를 감지하고 있습니다.")
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+
+        startForeground(
+            1001,
+            notification
+        )
+    }
+
     private fun showCrmNotification(phone: String) {
         try {
             val now = System.currentTimeMillis()
@@ -134,12 +143,7 @@ class CallStateService : Service() {
                     this@CallStateService,
                     MainActivity::class.java
                 ).apply {
-
-                    putExtra(
-                        "crm_url",
-                        url
-                    )
-
+                    putExtra("crm_url", url)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
@@ -150,35 +154,22 @@ class CallStateService : Service() {
                     200,
                     openIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or
-                            PendingIntent.FLAG_IMMUTABLE
+                        PendingIntent.FLAG_IMMUTABLE
                 )
 
             val notification =
                 NotificationCompat.Builder(
                     this,
-                    channelId
+                    callChannelId
                 )
                     .setSmallIcon(R.mipmap.ic_launcher)
                     .setContentTitle("신규 상담 등록")
                     .setContentText("통화가 종료되었습니다. 상담을 등록하세요.")
                     .setContentIntent(pendingIntent)
                     .setAutoCancel(true)
-
-                    // 중요도
-                    .setPriority(
-                        NotificationCompat.PRIORITY_HIGH
-                    )
-
-                    // 진동 + 소리 + 알림 활성화
-                    .setDefaults(
-                        NotificationCompat.DEFAULT_ALL
-                    )
-
-                    // 잠금화면 표시
-                    .setVisibility(
-                        NotificationCompat.VISIBILITY_PUBLIC
-                    )
-
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                     .build()
 
             val manager =
@@ -186,7 +177,10 @@ class CallStateService : Service() {
                     NotificationManager::class.java
                 )
 
-            manager.notify(200, notification)
+            manager.notify(
+                200,
+                notification
+            )
 
             Log.d("CRM", "CRM 알림 표시: $url")
 
@@ -195,24 +189,43 @@ class CallStateService : Service() {
         }
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel =
-                NotificationChannel(
-                    channelId,
-                    "CRM 통화 알림",
-                    NotificationManager.IMPORTANCE_HIGH
-                )
 
-            channel.description =
-                "통화 종료 후 신규 상담 등록 알림"
+            val serviceChannel =
+                NotificationChannel(
+                    serviceChannelId,
+                    "CRM 통화 감지",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description =
+                        "통화 종료 감지를 위해 실행 중인 서비스"
+                }
+
+            val callChannel =
+                NotificationChannel(
+                    callChannelId,
+                    "CRM 상담 등록 알림",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description =
+                        "통화 종료 후 신규 상담 등록 알림"
+                    enableVibration(true)
+                    enableLights(true)
+                }
 
             val manager =
                 getSystemService(
                     NotificationManager::class.java
                 )
 
-            manager.createNotificationChannel(channel)
+            manager.createNotificationChannel(
+                serviceChannel
+            )
+
+            manager.createNotificationChannel(
+                callChannel
+            )
         }
     }
 
