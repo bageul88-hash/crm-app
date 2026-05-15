@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { CATEGORY_TABS, filterByTab } from '../api/sheets'
@@ -133,9 +133,26 @@ export default function ListPage() {
   const [selectedTab, setSelectedTab] = useState(null)   // 1클릭 선택(파란 테두리)
   const [chartTab, setChartTab] = useState(null)          // 2클릭 활성(하늘색 + 차트)
   const [search, setSearch] = useState('')
+  const [inputVal, setInputVal] = useState('')
   const [showSubTabs, setShowSubTabs] = useState(false)
   // 시간 제한 없이 클릭 횟수로만 판단
   const clickCountRef = useRef({ tab: null, count: 0 })
+  const composingRef = useRef(false)
+
+  const handleSearchChange = useCallback(e => {
+    const val = e.target.value
+    setInputVal(val)
+    if (!composingRef.current) setSearch(val)
+  }, [])
+
+  const handleCompositionStart = useCallback(() => {
+    composingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(e => {
+    composingRef.current = false
+    setSearch(e.target.value)
+  }, [])
 
   const ALL_TABS = [...MAIN_TABS, ...SUB_TABS]
 
@@ -152,8 +169,8 @@ export default function ListPage() {
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(c =>
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.phone || '').includes(q)
+        String(c.name || '').toLowerCase().includes(q) ||
+        String(c.phone || '').includes(q)
       )
     }
     return list
@@ -216,9 +233,22 @@ export default function ListPage() {
         <div className="search-box">
           <span>🔍</span>
           <input
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck="false"
             placeholder="이름 또는 전화번호 검색"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={inputVal}
+            onChange={handleSearchChange}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault()
+                e.currentTarget.blur()
+              }
+            }}
           />
         </div>
 

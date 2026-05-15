@@ -3,8 +3,11 @@ package com.pentwo.crmapp
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.getcapacitor.BridgeActivity
@@ -17,6 +20,24 @@ class MainActivity : BridgeActivity() {
         registerPlugin(SmsPlugin::class.java)
         registerPlugin(ContactsPlugin::class.java)
         super.onCreate(savedInstanceState)
+
+        // 키보드 입력 시 흰 화면 방지 — Window/WebView 배경 모두 앱 배경색으로 고정
+        val appBg = Color.parseColor("#f6f7fb")
+        window.setBackgroundDrawable(ColorDrawable(appBg))
+        bridge.webView.setBackgroundColor(appBg)
+
+        // Enter 키를 WebView 네이티브 레벨에서 가로채 페이지 이동 차단
+        bridge.webView.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN) {
+                bridge.webView.evaluateJavascript(
+                    "(function(){ var el=document.activeElement; if(el) el.blur(); })();",
+                    null
+                )
+                true
+            } else {
+                false
+            }
+        }
 
         if (savedInstanceState == null) {
             handleIntentUrl()

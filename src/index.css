@@ -19,10 +19,10 @@
   --font: 'Noto Sans KR', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-html { font-size: 15px; }
+html { font-size: 15px; background: #eef1f6; }
 
 body {
-  min-height: 100dvh;
+  min-height: 100vh;
   background: #eef1f6;
   color: var(--text);
   font-family: var(--font);
@@ -36,14 +36,14 @@ button { cursor: pointer; }
 #root {
   width: 100%;
   max-width: 430px;
-  min-height: 100dvh;
+  min-height: 100vh;
   margin: 0 auto;
   background: var(--bg);
   box-shadow: 0 0 30px rgba(15, 23, 42, 0.08);
 }
 
 .app-shell {
-  min-height: 100dvh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -165,6 +165,11 @@ button { cursor: pointer; }
   z-index: 90;
   background: var(--bg);
   padding: 10px 12px 0;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .list-scroll-body { flex: 1; padding: 0 12px 90px; }
@@ -431,7 +436,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.6; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
 .login-page {
-  min-height: 100dvh;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;

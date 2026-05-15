@@ -32,6 +32,7 @@ export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업
 const DIAG_ONLY_TABS = ['펑크', '환불', '미등록', '연결', '가맹']
 
 export function filterByTab(list, tab) {
+  if (!Array.isArray(list)) return []
   if (tab === '전체') return list
   if (tab === '수업중') return list.filter(c => (c.category === '수업중' || c.diagResult === '등록') && c.category !== '수업종료')
   if (tab === '펑크')   return list.filter(c => c.diagResult === '펑크')

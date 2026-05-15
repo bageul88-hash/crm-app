@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Capacitor } from '@capacitor/core'
 
-// Capacitor는 네이티브 앱에서만 동작 — 웹 브라우저에서는 null 유지
 let CallPlugin = null
 
 async function getCallPlugin() {
+  if (!Capacitor.isNativePlatform()) return null
   if (CallPlugin) return CallPlugin
 
   try {

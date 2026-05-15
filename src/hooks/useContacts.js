@@ -1,7 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 
-const ContactsPlugin = registerPlugin('ContactsPlugin')
-
 export function buildContactMemo(payload) {
   const lines = ['[참바른글씨 CRM]']
   if (payload.phone)      lines.push(`전화: ${payload.phone}`)
@@ -23,6 +21,7 @@ export function buildContactMemo(payload) {
 export async function saveContactMemo(payload) {
   if (!Capacitor.isNativePlatform()) return { skipped: true }
 
+  const ContactsPlugin = registerPlugin('ContactsPlugin')
   const memo = buildContactMemo(payload)
   const name = payload.name || payload.phone || ''
 
