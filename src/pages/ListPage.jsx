@@ -173,7 +173,11 @@ export default function ListPage() {
         String(c.phone || '').includes(q)
       )
     }
-    return list
+    return [...list].sort((a, b) => {
+      const da = a.inquiryDate || a.savedAt || ''
+      const db = b.inquiryDate || b.savedAt || ''
+      return db.localeCompare(da)
+    })
   }, [consults, tab, search])
 
   const handleDelete = async consult => {
