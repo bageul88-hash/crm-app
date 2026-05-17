@@ -157,8 +157,8 @@ export default function ListPage() {
   const ALL_TABS = [...MAIN_TABS, ...SUB_TABS]
 
   const counts = useMemo(() => {
-    const map = { '전체': consults.length }
-    for (const t of CATEGORY_TABS.slice(1)) {
+    const map = {}
+    for (const t of ALL_TABS) {
       map[t] = filterByTab(consults, t).length
     }
     return map

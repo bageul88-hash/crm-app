@@ -59,7 +59,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="brand-wrap" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+        <button type="button" className="brand-wrap" onClick={() => navigate('/')}>
           <img src="/logo.png" alt="로고" className="brand-logo-img" />
           <div className="brand-text-group">
             <div className="brand-title">
@@ -71,7 +71,7 @@ export default function App() {
               <span>{currentUser?.role === 'admin' ? '관리자' : currentUser?.name}</span>
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="header-actions">
           {isAdmin && (

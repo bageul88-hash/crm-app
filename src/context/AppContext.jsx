@@ -13,6 +13,18 @@ const AppContext = createContext(null)
 const USER_KEY = 'crm_user'
 const CREDS_KEY = 'crm_credentials'
 const PW_OVERRIDES_KEY = 'crm_pw_overrides'
+const CACHE_KEY = 'crm_consults_cache'
+
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function saveCache(data) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)) } catch {}
+}
 
 function getEffectivePassword(userId) {
   try {
@@ -97,15 +109,21 @@ export function AppProvider({ children }) {
     setCurrentUser(null)
   }, [])
 
-  // 전체 새로고침 (로딩 스피너 표시)
+  // 전체 새로고침: 캐시 즉시 표시 → 백그라운드 갱신
   const load = useCallback(async () => {
-    setLoading(true)
+    const cached = loadCache()
+    if (cached) {
+      setConsults(cached)   // 캐시 즉시 표시 (스피너 없음)
+    } else {
+      setLoading(true)      // 첫 실행 시만 스피너
+    }
     setError(null)
     try {
       const data = await fetchConsults()
       setConsults(data)
+      saveCache(data)
     } catch (e) {
-      setError(e.message || '데이터를 불러오지 못했습니다')
+      if (!cached) setError(e.message || '데이터를 불러오지 못했습니다')
     } finally {
       setLoading(false)
     }
@@ -116,6 +134,7 @@ export function AppProvider({ children }) {
     try {
       const data = await fetchConsults()
       setConsults(data)
+      saveCache(data)
     } catch (_) { /* 백그라운드 실패는 무시 */ }
   }, [])
 

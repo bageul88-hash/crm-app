@@ -523,7 +523,22 @@ export default function InputPage() {
           placeholder="특징 입력"
           value={form.feature || ''}
           onChange={e => set('feature', e.target.value)}
-          onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
+          onFocus={e => {
+            const el = e.target
+            const adjust = () => {
+              const vv = window.visualViewport
+              const rect = el.getBoundingClientRect()
+              const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+              if (rect.bottom > visibleBottom - 20) {
+                const appMain = document.querySelector('.app-main')
+                if (appMain) appMain.scrollTop += rect.bottom - visibleBottom + 60
+              }
+            }
+            if (window.visualViewport) {
+              window.visualViewport.addEventListener('resize', adjust, { once: true })
+            }
+            setTimeout(adjust, 400)
+          }}
         />
       </div>
 

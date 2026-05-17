@@ -63,7 +63,7 @@ button { cursor: pointer; }
   border-bottom: 1px solid var(--border);
 }
 
-.brand-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brand-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; background: none; border: none; padding: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
 .brand-logo-img {
   width: 40px;
@@ -379,6 +379,9 @@ button { cursor: pointer; }
   justify-content: center;
   gap: 4px;
   text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .bottom-nav-btn.active { color: var(--accent); }
 .bottom-nav-icon { font-size: 19px; line-height: 1; font-weight: 800; }
