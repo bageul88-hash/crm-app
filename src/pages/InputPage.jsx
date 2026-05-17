@@ -129,6 +129,7 @@ const EMPTY = {
   diagResult: '',
   relation: '',
   customRelation: '',
+  hasPhoto: '',
   lessonDate: '',
   lessonDay: '',
   lessonTime: '',
@@ -326,6 +327,7 @@ export default function InputPage() {
       diagResult: form.diagResult || '',
 
       relation: relationValue || '',
+      hasPhoto: form.hasPhoto || '',
 
       lessonDate,
       lessonDay: lessonDate ? getDay(lessonDate) : '',
@@ -344,11 +346,7 @@ export default function InputPage() {
       return
     }
 
-    const exists = consults.some(
-      c =>
-        cleanPhone(c.phone) === phoneText &&
-        String(c.name || '').trim() === String(payload.name || '').trim()
-    )
+    const exists = consults.some(c => cleanPhone(c.phone) === phoneText)
 
     if (exists) {
       setMsg('❌ 이미 등록된 상담입니다. 기존 상담을 수정해주세요.')
@@ -469,7 +467,10 @@ export default function InputPage() {
         />
       </div>
 
-      <Sel label="관계" field="relation" options={OPTIONS.relation} form={form} set={set} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Sel label="관계" field="relation" options={OPTIONS.relation} form={form} set={set} />
+        <Sel label="사진" field="hasPhoto" options={['유', '무']} form={form} set={set} />
+      </div>
 
       {form.relation === '직접입력' && (
         <div className="form-group">
@@ -522,6 +523,7 @@ export default function InputPage() {
           placeholder="특징 입력"
           value={form.feature || ''}
           onChange={e => set('feature', e.target.value)}
+          onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
         />
       </div>
 

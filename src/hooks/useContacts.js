@@ -14,6 +14,7 @@ export function buildContactMemo(payload) {
   if (payload.diagTime)    lines.push(`진단예약시간: ${payload.diagTime}`)
   if (payload.diagResult)  lines.push(`진단결과: ${payload.diagResult}`)
   if (payload.relation)    lines.push(`관계: ${payload.relation}`)
+  if (payload.hasPhoto)    lines.push(`사진: ${payload.hasPhoto}`)
   if (payload.feature)     lines.push(`특징: ${payload.feature}`)
   return lines.join('\n')
 }

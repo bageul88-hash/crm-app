@@ -25,6 +25,7 @@ export const FIELD_MAP = {
   lessonDate: 17,
   lessonDay: 18,
   lessonTime: 19,
+  hasPhoto: 20,
 }
 
 export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '핑크', '환불', '미등록', '연결', '가맹']

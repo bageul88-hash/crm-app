@@ -1,4 +1,4 @@
-import { useLocation, Link } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 
 const NAV = [
@@ -13,6 +13,7 @@ const ADMIN_NAV = { path: '/branch', icon: '⊞', label: '지사관리' }
 
 export default function BottomNav() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { currentUser } = useApp()
   const isAdmin = currentUser?.role === 'admin'
 
@@ -27,15 +28,15 @@ export default function BottomNav() {
             : location.pathname.startsWith(item.path)
 
         return (
-          <Link
+          <button
             key={item.path}
-            to={item.path}
-            replace
+            type="button"
             className={`bottom-nav-btn${active ? ' active' : ''}`}
+            onClick={() => navigate(item.path, { replace: true })}
           >
             <span className="bottom-nav-icon">{item.icon}</span>
             <span className="bottom-nav-label">{item.label}</span>
-          </Link>
+          </button>
         )
       })}
     </nav>
