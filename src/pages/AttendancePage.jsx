@@ -9,28 +9,24 @@ const TODAY_LABEL = `${TODAY.getFullYear()}년 ${TODAY.getMonth()+1}월 ${TODAY.
 const DAYS_KR     = ['일','월','화','수','목','금','토']
 
 // "14:56" → "오후 2:56"
-function formatTime(timeStr) {
-  if (!timeStr) return ''
-  const [h, m] = timeStr.split(':').map(Number)
-  const ampm = h < 12 ? '오전' : '오후'
-  const hour  = h % 12 || 12
-  return `${ampm} ${hour}:${String(m).padStart(2,'0')}`
+function formatTime(t) {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(m).padStart(2,'0')}`
 }
 
-// 저장 항목 정규화: 구버전(문자열) / 신버전(객체) 모두 처리
+// 구버전(문자열) / 신버전(객체) 모두 처리
 function toEntry(raw) {
   return typeof raw === 'string' ? { name: raw, time: null } : raw
 }
 
-// records[date]에서 해당 이름이 이미 있는지 확인
 function hasEntry(list, name) {
   return (list || []).some(e => toEntry(e).name === name)
 }
 
 export default function AttendancePage() {
   const [students, setStudents]     = useState([])
-  // { "20260420": [{ name: "백희망", time: "14:56" }, ...] }
-  const [records, setRecords]       = useState({})
+  const [records, setRecords]       = useState({})   // { "20260420": [{name,time},...] }
   const [newName, setNewName]       = useState('')
   const [search, setSearch]         = useState('')
   const [tab, setTab]               = useState('attend')
@@ -39,13 +35,14 @@ export default function AttendancePage() {
   const [smsNotice, setSmsNotice]   = useState(null)
   const [smsImporting, setSmsImporting] = useState(false)
   const [smsResult, setSmsResult]   = useState(null)
+  const [smsError, setSmsError]     = useState(null)
   const [permDenied, setPermDenied] = useState(false)
   const [log, setLog]               = useState([])
   const [showLog, setShowLog]       = useState(false)
   const [processing, setProcessing] = useState(false)
   const [copyDone, setCopyDone]     = useState(false)
 
-  // 데이터 로드
+  // 초기 데이터 로드
   useEffect(() => {
     const savedStudents = localStorage.getItem('attendance_students')
     const savedRecords  = localStorage.getItem('attendance_records')
@@ -65,10 +62,11 @@ export default function AttendancePage() {
     if (savedRecords) setRecords(JSON.parse(savedRecords))
   }, [])
 
-  // 실시간 SMS 등원 감지 (time 포함)
+  // 실시간 SMS 등원 감지
   useEffect(() => {
     const handler = (e) => {
       const { studentName, time } = e.detail
+      console.log('[출석] 실시간 등원 이벤트:', studentName, time)
       const entry = { name: studentName, time: time || null }
       setRecords(prev => {
         const updated = { ...prev }
@@ -111,14 +109,41 @@ export default function AttendancePage() {
     persistStudents(students.filter(s => s.id !== id))
   }
 
-  // SMS 이력 불러오기
+  // SMS 이력 불러오기 (학생 관리 / 출석 이력 탭 공용)
   const importFromSms = async () => {
-    const hasPerm = await checkSmsPermission()
-    if (!hasPerm) { setPermDenied(true); return }
-
-    setSmsImporting(true)
+    console.log('[출석] SMS 불러오기 버튼 클릭')
+    setSmsError(null)
     setSmsResult(null)
-    const items = await readSmsHistory()
+
+    // 1. 권한 확인
+    let hasPerm = false
+    try {
+      hasPerm = await checkSmsPermission()
+    } catch (e) {
+      console.error('[출석] 권한 확인 중 오류:', e)
+      setSmsError('권한 확인 중 오류가 발생했습니다: ' + e)
+      return
+    }
+    console.log('[출석] SMS 권한:', hasPerm)
+
+    if (!hasPerm) {
+      console.log('[출석] 권한 없음 → 안내 팝업 표시')
+      setPermDenied(true)
+      return
+    }
+
+    // 2. SMS 읽기
+    setSmsImporting(true)
+    let items = []
+    try {
+      items = await readSmsHistory()
+    } catch (e) {
+      console.error('[출석] SMS 읽기 오류:', e)
+      setSmsError('SMS 읽기 중 오류가 발생했습니다: ' + e)
+      setSmsImporting(false)
+      return
+    }
+    console.log('[출석] 읽어온 SMS 항목 수:', items.length)
 
     if (items.length === 0) {
       setSmsResult({ added: 0, dup: 0, newStudents: 0, total: 0 })
@@ -126,11 +151,13 @@ export default function AttendancePage() {
       return
     }
 
+    // 3. 날짜별 저장 (중복 방지)
     const newRecords = { ...records }
     let addedCount = 0, dupCount = 0
     const allNames = new Set()
 
     items.forEach(({ studentName, date, time }) => {
+      console.log('[출석] 항목:', studentName, date, time)
       allNames.add(studentName)
       if (!hasEntry(newRecords[date], studentName)) {
         newRecords[date] = [...(newRecords[date] || []), { name: studentName, time: time || null }]
@@ -139,14 +166,16 @@ export default function AttendancePage() {
         dupCount++
       }
     })
+    console.log('[출석] 저장:', addedCount, '건, 중복:', dupCount, '건')
 
-    // 신규 학생 자동 등록
+    // 4. 신규 학생 자동 등록
     const existingNames = new Set(students.map(s => s.name))
     const toAdd = [...allNames]
       .filter(n => !existingNames.has(n))
       .map(n => ({ id: Date.now() + Math.random(), name: n, checked: false, done: false }))
 
     if (toAdd.length > 0) {
+      console.log('[출석] 신규 학생 자동 등록:', toAdd.map(s => s.name))
       const newList = [...students, ...toAdd]
       localStorage.setItem('attendance_students', JSON.stringify(newList))
       setStudents(newList)
@@ -155,6 +184,7 @@ export default function AttendancePage() {
     persistRecords(newRecords)
     setSmsResult({ added: addedCount, dup: dupCount, newStudents: toAdd.length, total: items.length })
     setSmsImporting(false)
+    console.log('[출석] SMS 불러오기 완료')
   }
 
   const toggle      = (id) => persistStudents(students.map(s => s.id === id ? { ...s, checked: !s.checked } : s))
@@ -188,14 +218,12 @@ export default function AttendancePage() {
       selected.forEach(s => lines.push(`  • ${s.name}`))
     }
 
-    // 출석 기록 저장 (중복 방지)
     const now = new Date()
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
     const newRecs = { ...records }
     selected.forEach(s => {
-      if (!hasEntry(newRecs[TODAY_STR], s.name)) {
+      if (!hasEntry(newRecs[TODAY_STR], s.name))
         newRecs[TODAY_STR] = [...(newRecs[TODAY_STR] || []), { name: s.name, time: timeStr }]
-      }
     })
     persistRecords(newRecs)
 
@@ -208,7 +236,7 @@ export default function AttendancePage() {
     setProcessing(false)
   }
 
-  // ─── 출석 이력 파생 데이터 ───
+  // 출석 이력 파생 데이터
   const allDates  = Object.keys(records).sort().reverse()
   const allYears  = [...new Set(allDates.map(d => d.slice(0,4)))].sort().reverse()
   const monthsForYear = selectedYear
@@ -223,6 +251,49 @@ export default function AttendancePage() {
   const checkedCount = students.filter(s => s.checked).length
   const doneCount    = students.filter(s => s.done).length
   const totalCount   = students.length
+
+  // 공용: SMS 불러오기 결과 UI
+  const SmsResultBox = () => {
+    if (smsError) return (
+      <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid var(--red)', borderRadius: 8, padding: '10px 14px', marginTop: 10, fontSize: 13, color: 'var(--red)' }}>
+        ⚠️ {smsError}
+      </div>
+    )
+    if (!smsResult) return null
+    return (
+      <div style={{ marginTop: 10, fontSize: 13 }}>
+        {smsResult.total === 0 ? (
+          <div style={{ color: 'var(--text3)', textAlign: 'center', padding: '6px 0' }}>
+            "[참바른글씨]" 등원 문자가 없습니다.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+              <span style={{ padding: '4px 10px', borderRadius: 20, background: 'rgba(22,163,74,0.1)', color: 'var(--green)', fontWeight: 600 }}>
+                ✅ {smsResult.added}건 새로 저장
+              </span>
+              {smsResult.dup > 0 && (
+                <span style={{ padding: '4px 10px', borderRadius: 20, background: 'var(--surface)', color: 'var(--text3)' }}>
+                  {smsResult.dup}건 중복 제외
+                </span>
+              )}
+              {smsResult.newStudents > 0 && (
+                <span style={{ padding: '4px 10px', borderRadius: 20, background: 'rgba(37,99,235,0.08)', color: 'var(--accent)', fontWeight: 600 }}>
+                  +{smsResult.newStudents}명 자동 등록
+                </span>
+              )}
+            </div>
+            <button
+              className="btn btn-ghost btn-full btn-sm"
+              onClick={() => { setTab('history') }}
+            >
+              📅 출석 이력 탭에서 날짜별 상세 보기
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="fade-in" style={{ padding: '16px 16px 24px' }}>
@@ -264,7 +335,7 @@ export default function AttendancePage() {
       {permDenied && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
         }} onClick={() => setPermDenied(false)}>
           <div style={{
             background: 'var(--bg2)', borderRadius: 'var(--radius)', padding: 24,
@@ -274,11 +345,13 @@ export default function AttendancePage() {
             <div style={{ fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 10, color: 'var(--text)' }}>
               SMS 읽기 권한이 필요합니다
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.75, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.9, marginBottom: 20 }}>
               "[참바른글씨]" 등원 문자를 자동으로 읽으려면 SMS 읽기 권한이 필요합니다.
               <br /><br />
               <strong style={{ color: 'var(--text2)' }}>권한 허용 방법</strong><br />
               설정 → 앱 → CRM → 권한 → 문자 메시지 → 허용
+              <br /><br />
+              권한 허용 후 다시 시도해주세요.
             </div>
             <button className="btn btn-primary btn-full" onClick={() => setPermDenied(false)}>확인</button>
           </div>
@@ -400,31 +473,19 @@ export default function AttendancePage() {
 
         <button
           className={`btn ${smsImporting ? 'btn-ghost' : 'btn-primary'} btn-full`}
-          onClick={importFromSms}
+          onClick={() => {
+            console.log('[출석이력탭] SMS 불러오기 버튼 클릭')
+            importFromSms()
+          }}
           disabled={smsImporting}
-          style={{ marginBottom: smsResult ? 10 : 16 }}>
+          style={{ marginBottom: 16 }}>
           {smsImporting ? '📨 불러오는 중...' : '📨 SMS 이력 불러오기'}
         </button>
 
-        {smsResult && (
-          <div style={{
-            background: 'var(--surface)', borderRadius: 'var(--radius)',
-            padding: '10px 14px', marginBottom: 16,
-            fontSize: 13, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
-          }}>
-            {smsResult.total === 0 ? (
-              <span style={{ color: 'var(--text3)' }}>"[참바른글씨]" 등원 문자가 없습니다.</span>
-            ) : (<>
-              <span style={{ color: 'var(--green)', fontWeight: 600 }}>✅ {smsResult.added}건 새로 저장</span>
-              {smsResult.dup > 0 && <span style={{ color: 'var(--text3)' }}>({smsResult.dup}건 중복 제외)</span>}
-              {smsResult.newStudents > 0 && (
-                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>+{smsResult.newStudents}명 자동 등록</span>
-              )}
-            </>)}
-          </div>
-        )}
+        <SmsResultBox />
 
-        {/* 년도/월 선택 */}
+        <div style={{ marginTop: smsResult || smsError ? 16 : 0 }} />
+
         {allYears.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 14, padding: '48px 0', lineHeight: 2 }}>
             저장된 출석 이력이 없습니다.<br />
@@ -433,6 +494,7 @@ export default function AttendancePage() {
             </span>
           </div>
         ) : (<>
+          {/* 년도 선택 */}
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>년도</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -448,6 +510,7 @@ export default function AttendancePage() {
             </div>
           </div>
 
+          {/* 월 선택 */}
           {selectedYear && monthsForYear.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>월</div>
@@ -465,6 +528,7 @@ export default function AttendancePage() {
             </div>
           )}
 
+          {/* 일별 출석 목록 */}
           {selectedYear && selectedMonth && (<>
             <div style={{
               fontSize: 13, color: 'var(--text2)', fontWeight: 600, marginBottom: 10,
@@ -491,20 +555,15 @@ export default function AttendancePage() {
                   const isWeekend = dow === 0 || dow === 6
                   return (
                     <div key={dateStr} className="card" style={{ padding: '12px 16px' }}>
-                      {/* 날짜 헤더 */}
                       <div style={{
                         display: 'flex', justifyContent: 'space-between',
                         alignItems: 'center', marginBottom: 10,
                       }}>
-                        <span style={{
-                          fontSize: 14, fontWeight: 700,
-                          color: isWeekend ? 'var(--red)' : 'var(--text)',
-                        }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: isWeekend ? 'var(--red)' : 'var(--text)' }}>
                           {parseInt(y)}년 {parseInt(mo)}월 {parseInt(d)}일 ({DAYS_KR[dow]})
                         </span>
                         <span className="badge">{entries.length}명</span>
                       </div>
-                      {/* 학생 목록 */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {entries.map((entry, idx) => (
                           <div key={idx} style={{
@@ -534,6 +593,27 @@ export default function AttendancePage() {
 
       {/* ──────────── 학생 관리 탭 ──────────── */}
       {tab === 'manage' && (<>
+
+        {/* SMS 이력 불러오기 — 학생 관리 탭 */}
+        <div className="card" style={{ marginBottom: 14 }}>
+          <label className="label">📱 SMS 출석 이력 불러오기</label>
+          <p style={{ fontSize: 12, color: 'var(--text3)', margin: '4px 0 10px', lineHeight: 1.6 }}>
+            "[참바른글씨]" 등원 문자에서 학생 이름과 날짜를 자동으로 읽어옵니다.
+          </p>
+          <button
+            className={`btn ${smsImporting ? 'btn-ghost' : 'btn-primary'} btn-full`}
+            onClick={() => {
+              console.log('[학생관리탭] SMS 불러오기 버튼 클릭')
+              importFromSms()
+            }}
+            disabled={smsImporting}
+          >
+            {smsImporting ? '📨 불러오는 중...' : '📨 SMS 이력 불러오기'}
+          </button>
+          <SmsResultBox />
+        </div>
+
+        {/* 학생 추가 */}
         <div className="card" style={{ marginBottom: 14 }}>
           <label className="label">학생 추가</label>
           <div style={{ display: 'flex', gap: 8 }}>
