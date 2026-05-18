@@ -102,6 +102,11 @@ class CallStateService : Service() {
             }
         }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startForegroundNotification()
+        return START_STICKY
+    }
+
     private fun startForegroundNotification() {
         val notification =
             NotificationCompat.Builder(
