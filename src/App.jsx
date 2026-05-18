@@ -59,7 +59,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <button type="button" className="brand-wrap" onClick={() => navigate('/')}>
+        <button type="button" className="brand-wrap" onClick={() => { window.location.href = '/' }}>
           <img src="/logo.png" alt="로고" className="brand-logo-img" />
           <div className="brand-text-group">
             <div className="brand-title">
