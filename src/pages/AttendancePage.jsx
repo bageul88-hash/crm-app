@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { readSmsHistory } from '../hooks/useSmsAttendance'
 
 const TODAY = new Date()
 const TODAY_STR = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
@@ -14,6 +15,8 @@ export default function AttendancePage() {
   const [copyDone, setCopyDone]     = useState(false)
   const [tab, setTab]               = useState('attend') // 'attend' | 'manage'
   const [smsNotice, setSmsNotice]   = useState(null)
+  const [smsImporting, setSmsImporting] = useState(false)
+  const [smsImportResult, setSmsImportResult] = useState(null)
 
   useEffect(() => {
     const saved    = localStorage.getItem('attendance_students')
@@ -61,6 +64,41 @@ export default function AttendancePage() {
   const removeStudent = (id) => {
     if (!confirm('삭제하시겠습니까?')) return
     persist(students.filter(s => s.id !== id))
+  }
+
+  const importFromSms = async () => {
+    setSmsImporting(true)
+    setSmsImportResult(null)
+    const items = await readSmsHistory()
+
+    if (items.length === 0) {
+      setSmsImportResult({ added: 0, existing: 0, byName: {} })
+      setSmsImporting(false)
+      return
+    }
+
+    // 학생별 최근 날짜 수집
+    const byName = {}
+    items.forEach(({ studentName, date }) => {
+      if (!byName[studentName] || date > byName[studentName]) {
+        byName[studentName] = date
+      }
+    })
+
+    let added = 0, existing = 0
+    const newList = [...students]
+    Object.keys(byName).forEach(name => {
+      if (newList.find(s => s.name === name)) {
+        existing++
+      } else {
+        newList.push({ id: Date.now() + Math.random(), name, checked: false, done: false })
+        added++
+      }
+    })
+
+    if (added > 0) persist(newList)
+    setSmsImportResult({ added, existing, byName })
+    setSmsImporting(false)
   }
 
   const toggle = (id) => persist(students.map(s => s.id === id ? { ...s, checked: !s.checked } : s))
@@ -260,6 +298,70 @@ export default function AttendancePage() {
 
       {/* ── 학생 관리 탭 ── */}
       {tab === 'manage' && (<>
+        {/* SMS 이력 불러오기 */}
+        <div className="card" style={{ marginBottom: 14 }}>
+          <label className="label">📱 SMS 출석 이력 자동 등록</label>
+          <p style={{ fontSize: 12, color: 'var(--text3)', margin: '4px 0 10px' }}>
+            "[참바른글씨]" 등원 문자에서 학생 이름을 읽어 자동 추가합니다
+          </p>
+          <button
+            className={`btn ${smsImporting ? 'btn-ghost' : 'btn-primary'} btn-full`}
+            onClick={importFromSms}
+            disabled={smsImporting}
+            style={{ marginBottom: smsImportResult ? 12 : 0 }}
+          >
+            {smsImporting ? '📨 불러오는 중...' : '📨 SMS 이력 불러오기'}
+          </button>
+
+          {smsImportResult && (
+            <div style={{ fontSize: 13 }}>
+              {Object.keys(smsImportResult.byName).length === 0 ? (
+                <div style={{ color: 'var(--text3)', textAlign: 'center', padding: '8px 0' }}>
+                  "[참바른글씨]" 등원 문자가 없습니다
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                    <span style={{
+                      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                      background: 'rgba(22,163,74,0.1)', color: 'var(--green)',
+                    }}>
+                      ✅ {smsImportResult.added}명 신규 추가
+                    </span>
+                    <span style={{
+                      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                      background: 'var(--surface)', color: 'var(--text3)',
+                    }}>
+                      {smsImportResult.existing}명 이미 등록됨
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {Object.entries(smsImportResult.byName)
+                      .sort((a, b) => b[1].localeCompare(a[1]))
+                      .map(([name, date]) => {
+                        const y = date.slice(0,4), m = date.slice(4,6), d = date.slice(6,8)
+                        const isNew = !students.find(s => s.name === name) ||
+                          smsImportResult.added > 0
+                        return (
+                          <div key={name} style={{
+                            display: 'flex', justifyContent: 'space-between',
+                            alignItems: 'center', padding: '6px 10px',
+                            background: 'var(--surface)', borderRadius: 8,
+                          }}>
+                            <span style={{ fontWeight: 500 }}>{name}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>
+                              최근 {y}.{m}.{d}
+                            </span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="card" style={{ marginBottom: 14 }}>
           <label className="label">학생 추가</label>
           <div style={{ display: 'flex', gap: 8 }}>

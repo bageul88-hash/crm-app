@@ -4,14 +4,19 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.Build
 import android.provider.Telephony
 import android.util.Log
+import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @CapacitorPlugin(name = "SmsPlugin")
 class SmsPlugin : Plugin() {
@@ -25,6 +30,50 @@ class SmsPlugin : Plugin() {
     @PluginMethod
     fun ping(call: PluginCall) {
         call.resolve()
+    }
+
+    @PluginMethod
+    fun readSmsHistory(call: PluginCall) {
+        val limit = call.getInt("limit", 500) ?: 500
+        val results = JSArray()
+
+        try {
+            val cursor = context.contentResolver.query(
+                Uri.parse("content://sms/inbox"),
+                arrayOf("_id", "body", "date"),
+                "body LIKE ?",
+                arrayOf("%참바른글씨%"),
+                "date DESC"
+            )
+
+            var count = 0
+            cursor?.use {
+                val bodyIdx = it.getColumnIndex("body")
+                val dateIdx = it.getColumnIndex("date")
+
+                while (it.moveToNext() && count < limit) {
+                    val body = if (bodyIdx >= 0) it.getString(bodyIdx) ?: "" else ""
+                    val timestamp = if (dateIdx >= 0) it.getLong(dateIdx) else 0L
+
+                    val studentName = parseStudentName(body) ?: continue
+                    val dateStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                        .format(Date(timestamp))
+
+                    val item = JSObject()
+                    item.put("studentName", studentName)
+                    item.put("date", dateStr)
+                    results.put(item)
+                    count++
+                }
+            }
+            Log.d("CRM_SMS", "SMS 이력 읽기 완료: ${results.length()}건")
+        } catch (e: Exception) {
+            Log.e("CRM_SMS", "SMS 이력 읽기 오류: ${e.message}")
+        }
+
+        val ret = JSObject()
+        ret.put("items", results)
+        call.resolve(ret)
     }
 
     private fun registerSmsReceiver() {

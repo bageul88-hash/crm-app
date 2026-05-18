@@ -14,3 +14,15 @@ export function useSmsAttendance(onStudentArrival) {
     return () => { handle?.remove() }
   }, [onStudentArrival])
 }
+
+export async function readSmsHistory() {
+  if (!Capacitor.isNativePlatform()) return []
+  try {
+    const SmsPlugin = registerPlugin('SmsPlugin')
+    const result = await SmsPlugin.readSmsHistory({ limit: 500 })
+    return result.items || []
+  } catch (e) {
+    console.log('SMS 이력 읽기 실패: ' + e)
+    return []
+  }
+}
