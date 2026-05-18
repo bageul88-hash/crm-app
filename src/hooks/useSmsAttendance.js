@@ -15,6 +15,17 @@ export function useSmsAttendance(onStudentArrival) {
   }, [onStudentArrival])
 }
 
+export async function checkSmsPermission() {
+  if (!Capacitor.isNativePlatform()) return true
+  try {
+    const SmsPlugin = registerPlugin('SmsPlugin')
+    const { granted } = await SmsPlugin.checkSmsPermission()
+    return granted
+  } catch {
+    return false
+  }
+}
+
 export async function readSmsHistory() {
   if (!Capacitor.isNativePlatform()) return []
   try {

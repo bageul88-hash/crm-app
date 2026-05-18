@@ -1,28 +1,39 @@
 import { useState, useEffect, useCallback } from 'react'
-import { readSmsHistory } from '../hooks/useSmsAttendance'
+import { checkSmsPermission, readSmsHistory } from '../hooks/useSmsAttendance'
 
-const TODAY = new Date()
-const TODAY_STR = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
+const TODAY      = new Date()
+const TODAY_STR  = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
+const TODAY_YEAR = String(TODAY.getFullYear())
+const TODAY_MON  = String(TODAY.getMonth()+1).padStart(2,'0')
 const TODAY_LABEL = `${TODAY.getFullYear()}년 ${TODAY.getMonth()+1}월 ${TODAY.getDate()}일 (${['일','월','화','수','목','금','토'][TODAY.getDay()]})`
+const DAYS_KR     = ['일','월','화','수','목','금','토']
 
 export default function AttendancePage() {
   const [students, setStudents]     = useState([])
+  // { "20260518": ["백희망", "김철수"], ... }
+  const [records, setRecords]       = useState({})
   const [newName, setNewName]       = useState('')
   const [search, setSearch]         = useState('')
+  const [tab, setTab]               = useState('attend')
+  const [selectedYear, setSelectedYear]   = useState(TODAY_YEAR)
+  const [selectedMonth, setSelectedMonth] = useState(TODAY_MON)
+  const [smsNotice, setSmsNotice]   = useState(null)
+  const [smsImporting, setSmsImporting] = useState(false)
+  const [smsResult, setSmsResult]   = useState(null)
+  const [permDenied, setPermDenied] = useState(false)
   const [log, setLog]               = useState([])
   const [showLog, setShowLog]       = useState(false)
   const [processing, setProcessing] = useState(false)
   const [copyDone, setCopyDone]     = useState(false)
-  const [tab, setTab]               = useState('attend') // 'attend' | 'manage'
-  const [smsNotice, setSmsNotice]   = useState(null)
-  const [smsImporting, setSmsImporting] = useState(false)
-  const [smsImportResult, setSmsImportResult] = useState(null)
 
+  // 데이터 로드
   useEffect(() => {
-    const saved    = localStorage.getItem('attendance_students')
-    const lastDate = localStorage.getItem('attendance_last_date')
-    if (saved) {
-      const parsed = JSON.parse(saved)
+    const savedStudents = localStorage.getItem('attendance_students')
+    const savedRecords  = localStorage.getItem('attendance_records')
+    const lastDate      = localStorage.getItem('attendance_last_date')
+
+    if (savedStudents) {
+      const parsed = JSON.parse(savedStudents)
       if (lastDate !== TODAY_STR) {
         const reset = parsed.map(s => ({ ...s, checked: false, done: false }))
         setStudents(reset)
@@ -32,12 +43,25 @@ export default function AttendancePage() {
         setStudents(parsed)
       }
     }
+
+    if (savedRecords) {
+      setRecords(JSON.parse(savedRecords))
+    }
   }, [])
 
-  // App.jsx에서 디스패치된 SMS 등원 이벤트 수신 → in-memory 상태 즉시 반영
+  // 실시간 SMS 등원 감지
   useEffect(() => {
     const handler = (e) => {
       const { studentName } = e.detail
+      setRecords(prev => {
+        const updated = { ...prev }
+        if (!updated[TODAY_STR]) updated[TODAY_STR] = []
+        if (!updated[TODAY_STR].includes(studentName)) {
+          updated[TODAY_STR] = [...updated[TODAY_STR], studentName]
+          localStorage.setItem('attendance_records', JSON.stringify(updated))
+        }
+        return updated
+      })
       setStudents(prev => prev.map(s =>
         s.name === studentName ? { ...s, done: true, checked: false } : s
       ))
@@ -48,62 +72,79 @@ export default function AttendancePage() {
     return () => window.removeEventListener('smsAttendance', handler)
   }, [])
 
-  const persist = useCallback((list) => {
+  const persistStudents = useCallback((list) => {
     localStorage.setItem('attendance_students', JSON.stringify(list))
     setStudents(list)
+  }, [])
+
+  const persistRecords = useCallback((recs) => {
+    localStorage.setItem('attendance_records', JSON.stringify(recs))
+    setRecords(recs)
   }, [])
 
   const addStudent = () => {
     const name = newName.trim()
     if (!name) return
     if (students.find(s => s.name === name)) { alert('이미 있는 학생입니다.'); return }
-    persist([...students, { id: Date.now(), name, checked: false, done: false }])
+    persistStudents([...students, { id: Date.now(), name, checked: false, done: false }])
     setNewName('')
   }
 
   const removeStudent = (id) => {
     if (!confirm('삭제하시겠습니까?')) return
-    persist(students.filter(s => s.id !== id))
+    persistStudents(students.filter(s => s.id !== id))
   }
 
+  // SMS 이력 불러오기
   const importFromSms = async () => {
+    const hasPermission = await checkSmsPermission()
+    if (!hasPermission) { setPermDenied(true); return }
+
     setSmsImporting(true)
-    setSmsImportResult(null)
+    setSmsResult(null)
     const items = await readSmsHistory()
 
     if (items.length === 0) {
-      setSmsImportResult({ added: 0, existing: 0, byName: {} })
+      setSmsResult({ added: 0, dup: 0, newStudents: 0, total: 0 })
       setSmsImporting(false)
       return
     }
 
-    // 학생별 최근 날짜 수집
-    const byName = {}
+    const newRecords = { ...records }
+    let addedCount = 0, dupCount = 0
+    const allNames = new Set()
+
     items.forEach(({ studentName, date }) => {
-      if (!byName[studentName] || date > byName[studentName]) {
-        byName[studentName] = date
-      }
-    })
-
-    let added = 0, existing = 0
-    const newList = [...students]
-    Object.keys(byName).forEach(name => {
-      if (newList.find(s => s.name === name)) {
-        existing++
+      allNames.add(studentName)
+      if (!newRecords[date]) newRecords[date] = []
+      if (!newRecords[date].includes(studentName)) {
+        newRecords[date] = [...newRecords[date], studentName]
+        addedCount++
       } else {
-        newList.push({ id: Date.now() + Math.random(), name, checked: false, done: false })
-        added++
+        dupCount++
       }
     })
 
-    if (added > 0) persist(newList)
-    setSmsImportResult({ added, existing, byName })
+    // 학생 목록에 없는 신규 학생 자동 추가
+    const existingNames = new Set(students.map(s => s.name))
+    const toAdd = [...allNames]
+      .filter(n => !existingNames.has(n))
+      .map(n => ({ id: Date.now() + Math.random(), name: n, checked: false, done: false }))
+
+    if (toAdd.length > 0) {
+      const newList = [...students, ...toAdd]
+      localStorage.setItem('attendance_students', JSON.stringify(newList))
+      setStudents(newList)
+    }
+
+    persistRecords(newRecords)
+    setSmsResult({ added: addedCount, dup: dupCount, newStudents: toAdd.length, total: items.length })
     setSmsImporting(false)
   }
 
-  const toggle = (id) => persist(students.map(s => s.id === id ? { ...s, checked: !s.checked } : s))
-  const selectAll   = () => persist(students.map(s => ({ ...s, checked: true })))
-  const deselectAll = () => persist(students.map(s => ({ ...s, checked: false })))
+  const toggle      = (id) => persistStudents(students.map(s => s.id === id ? { ...s, checked: !s.checked } : s))
+  const selectAll   = () => persistStudents(students.map(s => ({ ...s, checked: true })))
+  const deselectAll = () => persistStudents(students.map(s => ({ ...s, checked: false })))
 
   const runAttendance = async () => {
     const selected = students.filter(s => s.checked)
@@ -116,9 +157,8 @@ export default function AttendancePage() {
     lines.push(`날짜 폴더: ${TODAY_STR}`)
     lines.push('─'.repeat(28))
 
-    const names = selected.map(s => s.name).join('\n')
     try {
-      await navigator.clipboard.writeText(names)
+      await navigator.clipboard.writeText(selected.map(s => s.name).join('\n'))
       lines.push('📋 클립보드 복사 완료!')
       lines.push('')
       selected.forEach(s => lines.push(`  ✔ ${s.name}`))
@@ -130,18 +170,37 @@ export default function AttendancePage() {
       setTimeout(() => setCopyDone(false), 3000)
     } catch {
       lines.push('⚠️ 클립보드 복사 실패')
-      lines.push('아래 목록을 수동 입력하세요:')
       selected.forEach(s => lines.push(`  • ${s.name}`))
     }
+
+    // 출석 기록에도 저장 (중복 방지)
+    const newRecs = { ...records }
+    if (!newRecs[TODAY_STR]) newRecs[TODAY_STR] = []
+    selected.forEach(s => {
+      if (!newRecs[TODAY_STR].includes(s.name))
+        newRecs[TODAY_STR] = [...newRecs[TODAY_STR], s.name]
+    })
+    persistRecords(newRecs)
 
     lines.push('─'.repeat(28))
     lines.push(`출석 ${selected.length}명 처리 완료`)
 
-    persist(students.map(s => s.checked ? { ...s, done: true, checked: false } : s))
+    persistStudents(students.map(s => s.checked ? { ...s, done: true, checked: false } : s))
     setLog(lines)
     setShowLog(true)
     setProcessing(false)
   }
+
+  // ─── 출석 이력 파생 데이터 ───
+  const allDates  = Object.keys(records).sort().reverse()
+  const allYears  = [...new Set(allDates.map(d => d.slice(0,4)))].sort().reverse()
+  const monthsForYear = selectedYear
+    ? [...new Set(allDates.filter(d => d.startsWith(selectedYear)).map(d => d.slice(4,6)))].sort()
+    : []
+  const filteredDates = (selectedYear && selectedMonth)
+    ? allDates.filter(d => d.startsWith(selectedYear + selectedMonth))
+    : []
+  const totalForPeriod = filteredDates.reduce((sum, d) => sum + (records[d]?.length || 0), 0)
 
   const filtered     = students.filter(s => s.name.includes(search.trim()))
   const checkedCount = students.filter(s => s.checked).length
@@ -168,17 +227,43 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* SMS 자동 등원 알림 */}
+      {/* SMS 실시간 등원 알림 */}
       {smsNotice && (
         <div style={{
           background: 'rgba(22,163,74,0.12)', border: '1px solid var(--green)',
           borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 12,
           display: 'flex', alignItems: 'center', gap: 10,
           fontSize: 14, color: 'var(--green)', fontWeight: 600,
-          animation: 'fadeIn 0.3s ease',
         }}>
           <span style={{ fontSize: 18 }}>✅</span>
           <span>{smsNotice} 학생 등원 문자 감지 → 자동 출석 처리됨</span>
+        </div>
+      )}
+
+      {/* SMS 권한 없음 모달 */}
+      {permDenied && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }} onClick={() => setPermDenied(false)}>
+          <div style={{
+            background: 'var(--bg2)', borderRadius: 'var(--radius)', padding: 24,
+            maxWidth: 320, width: '100%',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 36, textAlign: 'center', marginBottom: 12 }}>📵</div>
+            <div style={{ fontSize: 16, fontWeight: 700, textAlign: 'center', marginBottom: 10, color: 'var(--text)' }}>
+              SMS 읽기 권한이 필요합니다
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.75, marginBottom: 20 }}>
+              "[참바른글씨]" 등원 문자를 자동으로 읽으려면 SMS 읽기 권한이 필요합니다.
+              <br /><br />
+              <strong style={{ color: 'var(--text2)' }}>권한 허용 방법</strong><br />
+              설정 → 앱 → CRM → 권한 → 문자 메시지 → 허용
+            </div>
+            <button className="btn btn-primary btn-full" onClick={() => setPermDenied(false)}>
+              확인
+            </button>
+          </div>
         </div>
       )}
 
@@ -187,10 +272,10 @@ export default function AttendancePage() {
         display: 'flex', background: 'var(--surface)',
         borderRadius: 'var(--radius-sm)', padding: 3, marginBottom: 16,
       }}>
-        {[['attend','✔ 출석 체크'],['manage','👥 학생 관리']].map(([key, label]) => (
+        {[['attend','✔ 출석 체크'],['history','📅 출석 이력'],['manage','👥 학생 관리']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
-            flex: 1, padding: '8px', border: 'none', borderRadius: 7,
-            fontSize: 13, fontWeight: tab === key ? 600 : 400, cursor: 'pointer',
+            flex: 1, padding: '7px 4px', border: 'none', borderRadius: 7,
+            fontSize: 12, fontWeight: tab === key ? 600 : 400, cursor: 'pointer',
             background: tab === key ? 'var(--bg2)' : 'transparent',
             color: tab === key ? 'var(--accent)' : 'var(--text3)',
             boxShadow: tab === key ? 'var(--shadow)' : 'none',
@@ -199,7 +284,7 @@ export default function AttendancePage() {
         ))}
       </div>
 
-      {/* ── 출석 체크 탭 ── */}
+      {/* ──────────── 출석 체크 탭 ──────────── */}
       {tab === 'attend' && (<>
         <div style={{ position: 'relative', marginBottom: 10 }}>
           <span style={{
@@ -224,15 +309,13 @@ export default function AttendancePage() {
               {totalCount === 0 ? '👥 학생 관리 탭에서 학생을 추가해주세요.' : '검색 결과가 없습니다.'}
             </div>
           ) : filtered.map((s, i) => (
-            <div key={s.id}
-              onClick={() => !s.done && toggle(s.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '13px 16px', cursor: s.done ? 'default' : 'pointer',
-                borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
-                background: s.done ? 'rgba(22,163,74,0.05)' : s.checked ? 'rgba(37,99,235,0.05)' : 'transparent',
-                transition: 'background 0.15s',
-              }}>
+            <div key={s.id} onClick={() => !s.done && toggle(s.id)} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px',
+              cursor: s.done ? 'default' : 'pointer',
+              borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
+              background: s.done ? 'rgba(22,163,74,0.05)' : s.checked ? 'rgba(37,99,235,0.05)' : 'transparent',
+              transition: 'background 0.15s',
+            }}>
               <div style={{
                 width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
                 border: s.done ? 'none' : s.checked ? 'none' : '2px solid var(--border)',
@@ -249,9 +332,7 @@ export default function AttendancePage() {
                 textDecoration: s.done ? 'line-through' : 'none',
               }}>{s.name}</span>
               {s.done && (
-                <span className="badge" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--green)', fontSize: 11 }}>
-                  처리완료
-                </span>
+                <span className="badge" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--green)', fontSize: 11 }}>처리완료</span>
               )}
             </div>
           ))}
@@ -289,79 +370,141 @@ export default function AttendancePage() {
             </div>
             {log.map((line, i) => (
               <div key={i} style={{ fontSize: 12, color: '#64ffda', fontFamily: 'monospace', lineHeight: 1.85 }}>
-                {line || '\u00A0'}
+                {line || ' '}
               </div>
             ))}
           </div>
         )}
       </>)}
 
-      {/* ── 학생 관리 탭 ── */}
-      {tab === 'manage' && (<>
-        {/* SMS 이력 불러오기 */}
-        <div className="card" style={{ marginBottom: 14 }}>
-          <label className="label">📱 SMS 출석 이력 자동 등록</label>
-          <p style={{ fontSize: 12, color: 'var(--text3)', margin: '4px 0 10px' }}>
-            "[참바른글씨]" 등원 문자에서 학생 이름을 읽어 자동 추가합니다
-          </p>
-          <button
-            className={`btn ${smsImporting ? 'btn-ghost' : 'btn-primary'} btn-full`}
-            onClick={importFromSms}
-            disabled={smsImporting}
-            style={{ marginBottom: smsImportResult ? 12 : 0 }}
-          >
-            {smsImporting ? '📨 불러오는 중...' : '📨 SMS 이력 불러오기'}
-          </button>
+      {/* ──────────── 출석 이력 탭 ──────────── */}
+      {tab === 'history' && (<>
 
-          {smsImportResult && (
-            <div style={{ fontSize: 13 }}>
-              {Object.keys(smsImportResult.byName).length === 0 ? (
-                <div style={{ color: 'var(--text3)', textAlign: 'center', padding: '8px 0' }}>
-                  "[참바른글씨]" 등원 문자가 없습니다
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                    <span style={{
-                      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                      background: 'rgba(22,163,74,0.1)', color: 'var(--green)',
-                    }}>
-                      ✅ {smsImportResult.added}명 신규 추가
-                    </span>
-                    <span style={{
-                      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                      background: 'var(--surface)', color: 'var(--text3)',
-                    }}>
-                      {smsImportResult.existing}명 이미 등록됨
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {Object.entries(smsImportResult.byName)
-                      .sort((a, b) => b[1].localeCompare(a[1]))
-                      .map(([name, date]) => {
-                        const y = date.slice(0,4), m = date.slice(4,6), d = date.slice(6,8)
-                        const isNew = !students.find(s => s.name === name) ||
-                          smsImportResult.added > 0
-                        return (
-                          <div key={name} style={{
-                            display: 'flex', justifyContent: 'space-between',
-                            alignItems: 'center', padding: '6px 10px',
-                            background: 'var(--surface)', borderRadius: 8,
-                          }}>
-                            <span style={{ fontWeight: 500 }}>{name}</span>
-                            <span style={{ fontSize: 11, color: 'var(--text3)' }}>
-                              최근 {y}.{m}.{d}
-                            </span>
-                          </div>
-                        )
-                      })}
-                  </div>
-                </>
+        {/* SMS 불러오기 */}
+        <button
+          className={`btn ${smsImporting ? 'btn-ghost' : 'btn-primary'} btn-full`}
+          onClick={importFromSms}
+          disabled={smsImporting}
+          style={{ marginBottom: smsResult ? 10 : 16 }}>
+          {smsImporting ? '📨 불러오는 중...' : '📨 SMS 이력 불러오기'}
+        </button>
+
+        {smsResult && (
+          <div style={{
+            background: 'var(--surface)', borderRadius: 'var(--radius)', padding: '10px 14px',
+            marginBottom: 16, fontSize: 13, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center',
+          }}>
+            {smsResult.total === 0 ? (
+              <span style={{ color: 'var(--text3)' }}>"[참바른글씨]" 등원 문자가 없습니다.</span>
+            ) : (<>
+              <span style={{ color: 'var(--green)', fontWeight: 600 }}>✅ {smsResult.added}건 새로 저장</span>
+              {smsResult.dup > 0 && <span style={{ color: 'var(--text3)' }}>({smsResult.dup}건 중복 제외)</span>}
+              {smsResult.newStudents > 0 && (
+                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>+{smsResult.newStudents}명 자동 등록</span>
               )}
+            </>)}
+          </div>
+        )}
+
+        {/* 연도/월 선택 */}
+        {allYears.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 14, padding: '48px 0', lineHeight: 2 }}>
+            저장된 출석 이력이 없습니다.<br />
+            <span style={{ fontSize: 12, opacity: 0.7 }}>
+              SMS 이력을 불러오거나<br/>출석 처리를 실행하면 자동 저장됩니다.
+            </span>
+          </div>
+        ) : (<>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>년도</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {allYears.map(y => (
+                <button key={y} onClick={() => { setSelectedYear(y); setSelectedMonth(null) }} style={{
+                  padding: '6px 16px', border: 'none', borderRadius: 20, cursor: 'pointer',
+                  fontFamily: 'var(--font)', fontSize: 13, fontWeight: selectedYear === y ? 700 : 400,
+                  background: selectedYear === y ? 'var(--accent)' : 'var(--surface)',
+                  color: selectedYear === y ? '#fff' : 'var(--text)',
+                  transition: 'all 0.15s',
+                }}>{y}년</button>
+              ))}
+            </div>
+          </div>
+
+          {selectedYear && monthsForYear.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>월</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {monthsForYear.map(m => (
+                  <button key={m} onClick={() => setSelectedMonth(m)} style={{
+                    padding: '6px 16px', border: 'none', borderRadius: 20, cursor: 'pointer',
+                    fontFamily: 'var(--font)', fontSize: 13, fontWeight: selectedMonth === m ? 700 : 400,
+                    background: selectedMonth === m ? 'var(--accent)' : 'var(--surface)',
+                    color: selectedMonth === m ? '#fff' : 'var(--text)',
+                    transition: 'all 0.15s',
+                  }}>{parseInt(m)}월</button>
+                ))}
+              </div>
             </div>
           )}
-        </div>
 
+          {selectedYear && selectedMonth && (<>
+            <div style={{
+              fontSize: 13, color: 'var(--text2)', fontWeight: 600, marginBottom: 10,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span>{selectedYear}년 {parseInt(selectedMonth)}월</span>
+              <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 400 }}>
+                {filteredDates.length}일 · 총 {totalForPeriod}건
+              </span>
+            </div>
+
+            {filteredDates.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 14, padding: '32px 0' }}>
+                해당 월의 출석 이력이 없습니다.
+              </div>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                {filteredDates.map((dateStr, i) => {
+                  const names = records[dateStr] || []
+                  const mo = dateStr.slice(4,6), d = dateStr.slice(6,8)
+                  const dow = new Date(parseInt(dateStr.slice(0,4)), parseInt(mo)-1, parseInt(d)).getDay()
+                  const isWeekend = dow === 0 || dow === 6
+                  return (
+                    <div key={dateStr} style={{
+                      padding: '12px 16px',
+                      borderBottom: i < filteredDates.length - 1 ? '1px solid var(--border)' : 'none',
+                    }}>
+                      <div style={{
+                        display: 'flex', justifyContent: 'space-between',
+                        alignItems: 'center', marginBottom: 8,
+                      }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 700,
+                          color: isWeekend ? 'var(--red)' : 'var(--text)',
+                        }}>
+                          {mo}/{d} ({DAYS_KR[dow]})
+                        </span>
+                        <span className="badge">{names.length}명</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {names.map(name => (
+                          <span key={name} style={{
+                            padding: '3px 10px', borderRadius: 20, fontSize: 12,
+                            background: 'rgba(37,99,235,0.08)', color: 'var(--accent)',
+                          }}>{name}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>)}
+        </>)}
+      </>)}
+
+      {/* ──────────── 학생 관리 탭 ──────────── */}
+      {tab === 'manage' && (<>
         <div className="card" style={{ marginBottom: 14 }}>
           <label className="label">학생 추가</label>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -393,9 +536,7 @@ export default function AttendancePage() {
             }}>
               <span style={{ fontSize: 15, flex: 1, color: 'var(--text)' }}>{s.name}</span>
               {s.done && (
-                <span className="badge" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--green)', fontSize: 11 }}>
-                  오늘출석
-                </span>
+                <span className="badge" style={{ background: 'rgba(22,163,74,0.12)', color: 'var(--green)', fontSize: 11 }}>오늘출석</span>
               )}
               <button className="btn btn-danger btn-sm" onClick={() => removeStudent(s.id)}>삭제</button>
             </div>
@@ -408,12 +549,13 @@ export default function AttendancePage() {
             style={{ marginTop: 12, color: 'var(--red)', borderColor: 'var(--red)' }}
             onClick={() => {
               if (confirm('오늘 출석 처리 기록을 초기화하시겠습니까?\n(학생 목록은 유지됩니다)'))
-                persist(students.map(s => ({ ...s, checked: false, done: false })))
+                persistStudents(students.map(s => ({ ...s, checked: false, done: false })))
             }}>
             오늘 출석 기록 초기화
           </button>
         )}
       </>)}
+
     </div>
   )
 }

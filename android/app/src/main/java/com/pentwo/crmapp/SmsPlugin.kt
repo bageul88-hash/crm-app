@@ -1,13 +1,16 @@
 package com.pentwo.crmapp
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Telephony
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -30,6 +33,17 @@ class SmsPlugin : Plugin() {
     @PluginMethod
     fun ping(call: PluginCall) {
         call.resolve()
+    }
+
+    @PluginMethod
+    fun checkSmsPermission(call: PluginCall) {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+        val ret = JSObject()
+        ret.put("granted", granted)
+        call.resolve(ret)
     }
 
     @PluginMethod
