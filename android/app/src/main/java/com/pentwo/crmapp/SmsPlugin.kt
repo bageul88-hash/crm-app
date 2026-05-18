@@ -66,16 +66,18 @@ class SmsPlugin : Plugin() {
                 val dateIdx = it.getColumnIndex("date")
 
                 while (it.moveToNext() && count < limit) {
-                    val body = if (bodyIdx >= 0) it.getString(bodyIdx) ?: "" else ""
+                    val body      = if (bodyIdx >= 0) it.getString(bodyIdx) ?: "" else ""
                     val timestamp = if (dateIdx >= 0) it.getLong(dateIdx) else 0L
 
                     val studentName = parseStudentName(body) ?: continue
-                    val dateStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-                        .format(Date(timestamp))
+                    val smsDate = Date(timestamp)
+                    val dateStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(smsDate)
+                    val timeStr = SimpleDateFormat("HH:mm",    Locale.getDefault()).format(smsDate)
 
                     val item = JSObject()
                     item.put("studentName", studentName)
                     item.put("date", dateStr)
+                    item.put("time", timeStr)
                     results.put(item)
                     count++
                 }
@@ -104,8 +106,11 @@ class SmsPlugin : Plugin() {
                 val studentName = parseStudentName(fullBody) ?: return
                 Log.d("CRM_SMS", "등원 학생 감지: $studentName")
 
+                val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+
                 val data = JSObject()
                 data.put("studentName", studentName)
+                data.put("time", timeStr)
                 notifyListeners("smsAttendance", data)
             }
         }
@@ -124,9 +129,9 @@ class SmsPlugin : Plugin() {
         Log.d("CRM_SMS", "SMS 수신 리스너 등록 완료")
     }
 
-    // [참바른글씨] 학생이름 학생이 등원하였습니다.
+    // [참바른글씨] OOO 학생이 등원하였습니다.
     private fun parseStudentName(body: String): String? {
-        val regex = Regex("""\[참바른글씨\]\s*(.+?)\s+학생이\s+등원하였습니다""")
+        val regex = Regex("""\[참바른글씨\]\s+(.+?)\s+학생이\s+등원하였습니다""")
         return regex.find(body)?.groupValues?.getOrNull(1)?.trim()
     }
 
