@@ -172,6 +172,7 @@ export default function InputPage() {
   const [msg, setMsg] = useState('')
   const [smsConsult, setSmsConsult] = useState(null)
   const [contactMsg, setContactMsg] = useState('')
+  const [featFocused, setFeatFocused] = useState(false)
 
   const showLessonFields = shouldShowLessonFields(form)
 
@@ -362,7 +363,7 @@ export default function InputPage() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 16, paddingBottom: featFocused ? 316 : 16 }}>
       <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20 }}>
         {isEdit ? '상담 수정' : '신규 상담 등록'}
       </h2>
@@ -524,21 +525,11 @@ export default function InputPage() {
           value={form.feature || ''}
           onChange={e => set('feature', e.target.value)}
           onFocus={e => {
+            setFeatFocused(true)
             const el = e.target
-            const adjust = () => {
-              const vv = window.visualViewport
-              const rect = el.getBoundingClientRect()
-              const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
-              if (rect.bottom > visibleBottom - 20) {
-                const appMain = document.querySelector('.app-main')
-                if (appMain) appMain.scrollTop += rect.bottom - visibleBottom + 60
-              }
-            }
-            if (window.visualViewport) {
-              window.visualViewport.addEventListener('resize', adjust, { once: true })
-            }
-            setTimeout(adjust, 400)
+            setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)
           }}
+          onBlur={() => setFeatFocused(false)}
         />
       </div>
 
