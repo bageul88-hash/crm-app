@@ -470,7 +470,7 @@ export default function InputPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Sel label="관계" field="relation" options={OPTIONS.relation} form={form} set={set} />
-        <Sel label="사진" field="hasPhoto" options={['유', '무']} form={form} set={set} />
+        <Sel label="수업자료" field="hasPhoto" options={['유', '무']} form={form} set={set} />
       </div>
 
       {form.relation === '직접입력' && (

@@ -42,6 +42,7 @@ export function filterByTab(list, tab) {
   if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
   if (tab === '연결')   return list.filter(c => c.diagResult === '연결')
   if (tab === '가맹')   return list.filter(c => c.diagResult === '가맹' || c.category === '가맹')
+  if (tab === '수업자료') return list.filter(c => c.hasPhoto === '유')
   if (tab === '예약')   return list.filter(c => c.category === '예약' && !DIAG_ONLY_TABS.includes(c.diagResult))
   if (tab === '문의')   return list.filter(c => c.category === '문의' && !['연결', '미등록', '가맹'].includes(c.diagResult))
   return list.filter(c => c.category === tab)
