@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import dayjs from 'dayjs'
 
 const TOP_TABS = ['전체', '예약', '문의', '수업중', '수업종료']
-const BOT_TABS = ['등록', '미등록', '환불', '연결', '펑크']
+const BOT_TABS = ['가맹', '미등록', '환불', '연결', '펑크']
 
 const RESULT_COLOR = {
   등록: 'var(--green)',
@@ -23,7 +23,6 @@ const TEMPLATES = [
   { key: 'classing', label: '수업중 안내' },
 ]
 
-// 예약만 체크된 데이터만 문자대상 예약 탭에 표시
 const isOnlyReserved = c =>
   c.category === '예약' &&
   (!c.diagResult || String(c.diagResult).trim() === '')
@@ -236,33 +235,6 @@ ${name} 학생의 수업일정
 🌐 pentwo.com`
   }
 
-  if (templateKey === 'franchise') {
-    return `♤ 참바른글씨 가맹 문의 
-
-대한민국 최다 방송사 소개
-최다 저서 (조선일보사, 길벗출판사 등)
-『또박또박 예쁜글씨(길벗)』 14만부 판매 돌파 저자
-전국 17곳 캠퍼스 운영
-노트를 보지 않고 필기하는
-뇌과학 글씨교정 창시자
-대표 유성영
-
-📅 상담 예약일시
-1월 24일 (토) 오후 1시
-
-📞 02-558-4111
-🌐 pentwo.com
-🌐 hunmaeng.com
-
-[오시는 길 안내]
-네비게이션: 한신인터밸리24 주차장
-→ 동관 3층 315호
-
-🚇 대중교통
-선릉역 2호선 4번 출구 → 직진 80m → 좌측
-한신인터밸리24 3층 315호`
-  }
-
   return `${name}님 안녕하세요. 상담 안내드립니다.`
 }
 
@@ -272,6 +244,7 @@ export default function SMSPage() {
   const [topTab, setTopTab] = useState('전체')
   const [botTab, setBotTab] = useState(null)
   const [daysBefore, setDaysBefore] = useState(30)
+  const [checkedIds, setCheckedIds] = useState(new Set())
 
   const [selectedTargets, setSelectedTargets] = useState([])
   const [templateKey, setTemplateKey] = useState('generalReserve')
@@ -284,17 +257,10 @@ export default function SMSPage() {
 
   const topFiltered = useMemo(() => {
     let list = consults
-
-    if (topTab === '예약') {
-      list = list.filter(isOnlyReserved)
-    } else if (topTab === '문의') {
-      list = list.filter(c => c.category === '문의')
-    } else if (topTab === '수업중') {
-      list = list.filter(c => c.category === '수업중' || c.diagResult === '수업중')
-    } else if (topTab === '수업종료') {
-      list = list.filter(c => c.category === '수업종료')
-    }
-
+    if (topTab === '예약') list = list.filter(isOnlyReserved)
+    else if (topTab === '문의') list = list.filter(c => c.category === '문의')
+    else if (topTab === '수업중') list = list.filter(c => c.category === '수업중' || c.diagResult === '수업중')
+    else if (topTab === '수업종료') list = list.filter(c => c.category === '수업종료')
     return list
   }, [consults, topTab])
 
@@ -302,8 +268,8 @@ export default function SMSPage() {
     let list = topFiltered
 
     if (botTab) {
-      if (botTab === '등록') {
-        list = list.filter(c => c.diagResult === '등록' && c.category !== '수업중')
+      if (botTab === '가맹') {
+        list = list.filter(c => c.diagResult === '가맹' || c.category === '가맹')
       } else {
         list = list.filter(c => c.diagResult === botTab)
       }
@@ -320,9 +286,38 @@ export default function SMSPage() {
     return [...list].sort((a, b) => b.id - a.id)
   }, [topFiltered, botTab, cutoff, daysBefore])
 
+  // targets 변경 시 전체 체크로 초기화
+  useEffect(() => {
+    setCheckedIds(new Set(targets.map(c => c.id)))
+  }, [targets])
+
+  const checkedTargets = useMemo(
+    () => targets.filter(c => checkedIds.has(c.id)),
+    [targets, checkedIds]
+  )
+
+  const allChecked = targets.length > 0 && checkedIds.size === targets.length
+  const someChecked = checkedIds.size > 0 && checkedIds.size < targets.length
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setCheckedIds(new Set())
+    } else {
+      setCheckedIds(new Set(targets.map(c => c.id)))
+    }
+  }
+
+  const toggleOne = id => {
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const counts = useMemo(() => {
     const map = {}
-
     map['전체'] = consults.length
     map['예약'] = consults.filter(isOnlyReserved).length
     map['문의'] = consults.filter(c => c.category === '문의').length
@@ -330,8 +325,8 @@ export default function SMSPage() {
     map['수업종료'] = consults.filter(c => c.category === '수업종료').length
 
     BOT_TABS.forEach(t => {
-      if (t === '등록') {
-        map[t] = topFiltered.filter(c => c.diagResult === '등록' && c.category !== '수업중').length
+      if (t === '가맹') {
+        map[t] = topFiltered.filter(c => c.diagResult === '가맹' || c.category === '가맹').length
       } else {
         map[t] = topFiltered.filter(c => c.diagResult === t).length
       }
@@ -340,7 +335,7 @@ export default function SMSPage() {
     return map
   }, [consults, topFiltered])
 
-  const firstTarget = selectedTargets[0]
+  const firstTarget = checkedTargets[0] ?? selectedTargets[0]
   const previewText = customText || makeSmsBody(firstTarget, templateKey)
   const targetPhones = selectedTargets.map(c => c.phone).filter(Boolean)
 
@@ -360,10 +355,8 @@ export default function SMSPage() {
       alert('전화번호가 없습니다.')
       return
     }
-
     const phones = targetPhones.join(',')
     const body = encodeURIComponent(previewText)
-
     window.location.href = `sms:${phones}?body=${body}`
   }
 
@@ -386,6 +379,7 @@ export default function SMSPage() {
         fontWeight: active ? 600 : 400,
         cursor: 'pointer',
         fontFamily: 'var(--font)',
+        touchAction: 'manipulation',
       }}
     >
       {label}
@@ -412,10 +406,7 @@ export default function SMSPage() {
             label={t}
             count={counts[t]}
             active={topTab === t}
-            onClick={() => {
-              setTopTab(t)
-              setBotTab(null)
-            }}
+            onClick={() => { setTopTab(t); setBotTab(null) }}
           />
         ))}
       </div>
@@ -443,34 +434,39 @@ export default function SMSPage() {
             onChange={e => setDaysBefore(Number(e.target.value))}
             style={{ flex: 1, accentColor: 'var(--accent)' }}
           />
-          <span
-            style={{
-              minWidth: 56,
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--accent)',
-              textAlign: 'right',
-            }}
-          >
+          <span style={{ minWidth: 56, fontSize: 14, fontWeight: 600, color: 'var(--accent)', textAlign: 'right' }}>
             {daysBefore === 0 ? '전체' : `${daysBefore}일`}
           </span>
         </div>
       </div>
 
+      {/* 전체 체크박스 + 카운트 + 문자보내기 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ fontSize: 15, fontWeight: 600 }}>
-          대상 <span style={{ color: 'var(--accent)' }}>{targets.length}명</span>
-        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+          <input
+            type="checkbox"
+            checked={allChecked}
+            ref={el => { if (el) el.indeterminate = someChecked }}
+            onChange={toggleAll}
+            style={{ width: 18, height: 18, accentColor: 'var(--accent)', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 15, fontWeight: 600 }}>
+            전체 선택&nbsp;
+            <span style={{ color: 'var(--accent)' }}>{checkedIds.size}</span>
+            <span style={{ color: 'var(--text3)', fontWeight: 400 }}>/{targets.length}명</span>
+          </span>
+        </label>
 
         <button
           className="btn btn-primary btn-sm"
-          onClick={() => openSmsModal(targets)}
-          disabled={targets.length === 0}
+          onClick={() => openSmsModal(checkedTargets)}
+          disabled={checkedTargets.length === 0}
         >
           📩 문자보내기
         </button>
       </div>
 
+      {/* 학생 목록 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {targets.map(c => (
           <div
@@ -478,11 +474,19 @@ export default function SMSPage() {
             className="card"
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
               alignItems: 'flex-start',
               gap: 10,
+              opacity: checkedIds.has(c.id) ? 1 : 0.45,
             }}
           >
+            {/* 개별 체크박스 */}
+            <input
+              type="checkbox"
+              checked={checkedIds.has(c.id)}
+              onChange={() => toggleOne(c.id)}
+              style={{ width: 18, height: 18, marginTop: 2, accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
+            />
+
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 3 }}>
                 {c.name || '(이름없음)'}
@@ -508,7 +512,6 @@ export default function SMSPage() {
                     {c.inquiryDay ? ` (${c.inquiryDay})` : ''}
                   </span>
                 )}
-
                 {c.diagDate && (
                   <span style={{ color: 'var(--orange)' }}>
                     🔔 {fmtDate(c.diagDate)}
@@ -520,31 +523,21 @@ export default function SMSPage() {
 
               <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                 {c.diagResult && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: '2px 7px',
-                      borderRadius: 10,
-                      background: 'var(--surface)',
-                      color: RESULT_COLOR[c.diagResult] || 'var(--text2)',
-                      border: `1px solid ${RESULT_COLOR[c.diagResult] || 'var(--border)'}`,
-                    }}
-                  >
+                  <span style={{
+                    fontSize: 11, padding: '2px 7px', borderRadius: 10,
+                    background: 'var(--surface)',
+                    color: RESULT_COLOR[c.diagResult] || 'var(--text2)',
+                    border: `1px solid ${RESULT_COLOR[c.diagResult] || 'var(--border)'}`,
+                  }}>
                     {c.diagResult}
                   </span>
                 )}
-
                 {c.category && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: '2px 7px',
-                      borderRadius: 10,
-                      background: 'var(--surface)',
-                      color: 'var(--text3)',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
+                  <span style={{
+                    fontSize: 11, padding: '2px 7px', borderRadius: 10,
+                    background: 'var(--surface)', color: 'var(--text3)',
+                    border: '1px solid var(--border)',
+                  }}>
                     {c.category}
                   </span>
                 )}
@@ -553,17 +546,11 @@ export default function SMSPage() {
 
             <button
               className="btn btn-ghost btn-sm"
-              style={{
-                fontSize: 12,
-                padding: '5px 10px',
-                flexShrink: 0,
-                color: 'var(--accent)',
-                borderColor: 'var(--accent)',
-              }}
+              style={{ fontSize: 12, padding: '5px 10px', flexShrink: 0, color: 'var(--accent)', borderColor: 'var(--accent)' }}
               onClick={() => openSmsModal([c])}
               disabled={!c.phone}
             >
-              📩 문자보내기
+              📩
             </button>
           </div>
         ))}
@@ -576,52 +563,33 @@ export default function SMSPage() {
         )}
       </div>
 
+      {/* 문자 발송 모달 */}
       {selectedTargets.length > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: '#fff',
-            zIndex: 999,
-            padding: 16,
-            overflowY: 'auto',
-          }}
-        >
+        <div style={{
+          position: 'fixed', inset: 0, background: '#fff',
+          zIndex: 999, padding: 16, overflowY: 'auto',
+        }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                문자 발송
-              </h2>
+              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>문자 발송</h2>
               <div style={{ fontSize: 13, color: 'var(--text2)' }}>
                 대상 {selectedTargets.length}명
               </div>
             </div>
-
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={closeSmsModal}
-              style={{ fontSize: 18 }}
-            >
-              ×
-            </button>
+            <button className="btn btn-ghost btn-sm" onClick={closeSmsModal} style={{ fontSize: 18 }}>×</button>
           </div>
 
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12 }}>
             {TEMPLATES.map(t => (
               <button
                 key={t.key}
-                onClick={() => {
-                  setTemplateKey(t.key)
-                  setCustomText('')
-                }}
+                onClick={() => { setTemplateKey(t.key); setCustomText('') }}
                 style={{
-                  flexShrink: 0,
-                  padding: '6px 12px',
-                  borderRadius: 20,
+                  flexShrink: 0, padding: '6px 12px', borderRadius: 20,
                   border: `1px solid ${templateKey === t.key ? 'var(--accent)' : 'var(--border)'}`,
                   background: templateKey === t.key ? 'rgba(79,126,248,0.12)' : 'transparent',
                   color: templateKey === t.key ? 'var(--accent)' : 'var(--text2)',
-                  fontSize: 13,
+                  fontSize: 13, cursor: 'pointer',
                 }}
               >
                 {t.label}
@@ -632,13 +600,7 @@ export default function SMSPage() {
           <label className="label">문자 내용</label>
           <textarea
             className="input"
-            style={{
-              minHeight: 260,
-              marginTop: 8,
-              fontSize: 14,
-              lineHeight: 1.6,
-              color: 'var(--text2)',
-            }}
+            style={{ minHeight: 260, marginTop: 8, fontSize: 14, lineHeight: 1.6, color: 'var(--text2)' }}
             value={previewText}
             onChange={e => setCustomText(e.target.value)}
           />
@@ -648,21 +610,8 @@ export default function SMSPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-            <button
-              className="btn btn-ghost"
-              style={{ flex: 1 }}
-              onClick={copyText}
-            >
-              내용 복사
-            </button>
-
-            <button
-              className="btn btn-primary"
-              style={{ flex: 1 }}
-              onClick={sendSms}
-            >
-              📩 문자 보내기
-            </button>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={copyText}>내용 복사</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={sendSms}>📩 문자 보내기</button>
           </div>
         </div>
       )}
