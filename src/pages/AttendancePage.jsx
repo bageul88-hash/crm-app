@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react'
+﻿// VERSION-20260519-1300
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { checkSmsPermission, requestSmsPermission, readSmsHistory } from '../hooks/useSmsAttendance'
 
 const TODAY      = new Date()
@@ -175,7 +176,8 @@ export default function AttendancePage() {
       <div style={{ background: 'var(--accent)', borderRadius: 'var(--radius)', padding: '14px 18px', marginBottom: 14, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>오늘 출석일</div>
-          <div style={{ fontSize: 17, fontWeight: 700 }}>{TODAY_LABEL}</div>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>{TODAY_LABEL} <span style={{ fontSize: 20, fontWeight: 900, background: 'rgba(255,255,255,0.25)', borderRadius: 6, padding: '2px 8px', marginLeft: 6 }}>v1300</span></div>
+          <span style={{ color: 'yellow', fontSize: 20 }}>빌드TEST-1300</span>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>{todayEntries.length}</div>

@@ -20,7 +20,10 @@ export default function BottomNav() {
   const items = isAdmin ? [...NAV, ADMIN_NAV] : NAV
 
   return (
-    <nav className="bottom-nav">
+    <nav className="bottom-nav" style={{ position: 'relative' }}>
+      <span style={{ position: 'absolute', top: 2, right: 6, fontSize: 9, color: 'var(--text3)', opacity: 0.7, pointerEvents: 'none' }}>
+        v26.05.19-1224
+      </span>
       {items.map(item => {
         const active =
           item.path === '/'
