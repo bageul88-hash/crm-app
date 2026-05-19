@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { checkSmsPermission, readSmsHistory } from '../hooks/useSmsAttendance'
+import { checkSmsPermission, requestSmsPermission, readSmsHistory } from '../hooks/useSmsAttendance'
 
 const TODAY      = new Date()
 const TODAY_STR  = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
@@ -115,24 +115,37 @@ export default function AttendancePage() {
     setSmsError(null)
     setSmsResult(null)
 
-    // 1. 권한 확인
+    // 1. 테스트 알림 (버튼 클릭 동작 확인용)
+    alert('SMS 권한을 요청합니다')
+
+    // 2. 현재 권한 상태 확인
     let hasPerm = false
     try {
       hasPerm = await checkSmsPermission()
+      console.log('[출석] 현재 SMS 권한:', hasPerm)
     } catch (e) {
-      console.error('[출석] 권한 확인 중 오류:', e)
-      setSmsError('권한 확인 중 오류가 발생했습니다: ' + e)
-      return
+      console.error('[출석] 권한 확인 오류:', e)
     }
-    console.log('[출석] SMS 권한:', hasPerm)
 
+    // 3. 권한 없으면 Android 시스템 권한 요청 다이얼로그 표시
     if (!hasPerm) {
-      console.log('[출석] 권한 없음 → 안내 팝업 표시')
+      console.log('[출석] 권한 없음 → 시스템 권한 요청 다이얼로그 표시')
+      try {
+        hasPerm = await requestSmsPermission()
+        console.log('[출석] 권한 요청 결과:', hasPerm)
+      } catch (e) {
+        console.error('[출석] 권한 요청 오류:', e)
+      }
+    }
+
+    // 4. 권한 거부된 경우 → 설정 안내
+    if (!hasPerm) {
+      console.log('[출석] 권한 거부 → 설정 안내 표시')
       setPermDenied(true)
       return
     }
 
-    // 2. SMS 읽기
+    // 5. SMS 읽기
     setSmsImporting(true)
     let items = []
     try {

@@ -5,23 +5,30 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Telephony
 import android.util.Log
-import androidx.core.content.ContextCompat
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
+import com.getcapacitor.PermissionState
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
+import com.getcapacitor.annotation.PermissionCallback
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@CapacitorPlugin(name = "SmsPlugin")
+@CapacitorPlugin(
+    name = "SmsPlugin",
+    permissions = [
+        Permission(strings = [Manifest.permission.READ_SMS],     alias = "readSms"),
+        Permission(strings = [Manifest.permission.RECEIVE_SMS],  alias = "receiveSms")
+    ]
+)
 class SmsPlugin : Plugin() {
 
     private var smsReceiver: BroadcastReceiver? = null
@@ -35,12 +42,34 @@ class SmsPlugin : Plugin() {
         call.resolve()
     }
 
+    // 현재 SMS 권한 상태 확인
     @PluginMethod
     fun checkSmsPermission(call: PluginCall) {
-        val granted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_SMS
-        ) == PackageManager.PERMISSION_GRANTED
+        val granted = getPermissionState("readSms") == PermissionState.GRANTED
+        Log.d("CRM_SMS", "checkSmsPermission: $granted")
+        val ret = JSObject()
+        ret.put("granted", granted)
+        call.resolve(ret)
+    }
+
+    // Android 시스템 권한 요청 다이얼로그 표시
+    @PluginMethod
+    fun requestSmsPermission(call: PluginCall) {
+        Log.d("CRM_SMS", "requestSmsPermission 호출")
+        if (getPermissionState("readSms") == PermissionState.GRANTED) {
+            Log.d("CRM_SMS", "이미 권한 있음")
+            val ret = JSObject()
+            ret.put("granted", true)
+            call.resolve(ret)
+            return
+        }
+        requestPermissionForAlias("readSms", call, "smsPermissionCallback")
+    }
+
+    @PermissionCallback
+    private fun smsPermissionCallback(call: PluginCall) {
+        val granted = getPermissionState("readSms") == PermissionState.GRANTED
+        Log.d("CRM_SMS", "권한 요청 결과: $granted")
         val ret = JSObject()
         ret.put("granted", granted)
         call.resolve(ret)
