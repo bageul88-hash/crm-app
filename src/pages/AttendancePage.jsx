@@ -36,6 +36,8 @@ export default function AttendancePage() {
   const [smsImporting, setSmsImporting] = useState(false)
   const [smsResult, setSmsResult]   = useState(null)
   const [smsError, setSmsError]     = useState(null)
+  const [searchResults, setSearchResults] = useState(null)   // null=미조회 | {}=결과없음 | {date:[entries]}
+  const [searching, setSearching]   = useState(false)
   const [permDenied, setPermDenied] = useState(false)
   const [log, setLog]               = useState([])
   const [showLog, setShowLog]       = useState(false)
@@ -198,6 +200,58 @@ export default function AttendancePage() {
     setSmsResult({ added: addedCount, dup: dupCount, newStudents: toAdd.length, total: items.length })
     setSmsImporting(false)
     console.log('[출석] SMS 불러오기 완료')
+  }
+
+  // 출석 이력 탭 조회 버튼
+  const handleSearch = async () => {
+    if (!selectedYear || !selectedMonth) return
+    console.log('[조회] 시작:', selectedYear, selectedMonth)
+    setSearchResults(null)
+    setSearching(true)
+
+    // 1. 권한 확인 → 없으면 요청
+    let hasPerm = await checkSmsPermission()
+    if (!hasPerm) {
+      hasPerm = await requestSmsPermission()
+      if (!hasPerm) { setPermDenied(true); setSearching(false); return }
+    }
+
+    // 2. SMS 전체 읽기
+    let items = []
+    try {
+      items = await readSmsHistory()
+    } catch (e) {
+      console.error('[조회] SMS 읽기 오류:', e)
+      setSearchResults({})
+      setSearching(false)
+      return
+    }
+    console.log('[조회] 전체 SMS 항목:', items.length)
+
+    // 3. 선택 년/월로 필터링
+    const prefix = selectedYear + selectedMonth
+    const filtered = items.filter(it => it.date?.startsWith(prefix))
+    console.log('[조회] 필터 결과:', filtered.length, '건')
+
+    // 4. 날짜별 그룹핑
+    const grouped = {}
+    filtered.forEach(({ studentName, date, time }) => {
+      if (!grouped[date]) grouped[date] = []
+      if (!grouped[date].find(e => e.name === studentName)) {
+        grouped[date].push({ name: studentName, time: time || null })
+      }
+    })
+
+    // 5. records에도 저장 (중복 방지)
+    const newRecs = { ...records }
+    filtered.forEach(({ studentName, date, time }) => {
+      if (!hasEntry(newRecs[date], studentName))
+        newRecs[date] = [...(newRecs[date] || []), { name: studentName, time: time || null }]
+    })
+    persistRecords(newRecs)
+
+    setSearchResults(grouped)
+    setSearching(false)
   }
 
   const toggle      = (id) => persistStudents(students.map(s => s.id === id ? { ...s, checked: !s.checked } : s))
@@ -484,124 +538,119 @@ export default function AttendancePage() {
       {/* ──────────── 출석 이력 탭 ──────────── */}
       {tab === 'history' && (<>
 
-        <button
-          className={`btn ${smsImporting ? 'btn-ghost' : 'btn-primary'} btn-full`}
-          onClick={() => {
-            console.log('[출석이력탭] SMS 불러오기 버튼 클릭')
-            importFromSms()
-          }}
-          disabled={smsImporting}
-          style={{ marginBottom: 16 }}>
-          {smsImporting ? '📨 불러오는 중...' : '📨 SMS 이력 불러오기'}
-        </button>
-
-        <SmsResultBox />
-
-        <div style={{ marginTop: smsResult || smsError ? 16 : 0 }} />
-
-        {allYears.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 14, padding: '48px 0', lineHeight: 2 }}>
-            저장된 출석 이력이 없습니다.<br />
-            <span style={{ fontSize: 12, opacity: 0.7 }}>
-              SMS 이력을 불러오거나<br />출석 처리를 실행하면 자동 저장됩니다.
-            </span>
+        {/* 기간 선택 카드 */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <label className="label">📅 조회 기간 선택</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            {/* 년도 드롭다운 */}
+            <select
+              value={selectedYear}
+              onChange={e => { setSelectedYear(e.target.value); setSearchResults(null) }}
+              className="input"
+              style={{ flex: 1 }}
+            >
+              <option value="">년도 선택</option>
+              {['2024','2025','2026', String(TODAY.getFullYear())]
+                .filter((v,i,a) => a.indexOf(v) === i).sort()
+                .map(y => <option key={y} value={y}>{y}년</option>)}
+            </select>
+            {/* 월 드롭다운 */}
+            <select
+              value={selectedMonth}
+              onChange={e => { setSelectedMonth(e.target.value); setSearchResults(null) }}
+              className="input"
+              style={{ flex: 1 }}
+            >
+              <option value="">월 선택</option>
+              {Array.from({length:12},(_,i)=>String(i+1).padStart(2,'0'))
+                .map(m => <option key={m} value={m}>{parseInt(m)}월</option>)}
+            </select>
           </div>
-        ) : (<>
-          {/* 년도 선택 */}
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>년도</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {allYears.map(y => (
-                <button key={y} onClick={() => { setSelectedYear(y); setSelectedMonth(null) }} style={{
-                  padding: '6px 16px', border: 'none', borderRadius: 20, cursor: 'pointer',
-                  fontFamily: 'var(--font)', fontSize: 13, fontWeight: selectedYear === y ? 700 : 400,
-                  background: selectedYear === y ? 'var(--accent)' : 'var(--surface)',
-                  color: selectedYear === y ? '#fff' : 'var(--text)',
-                  transition: 'all 0.15s',
-                }}>{y}년</button>
-              ))}
-            </div>
+          <button
+            className={`btn btn-primary btn-full`}
+            onClick={handleSearch}
+            disabled={!selectedYear || !selectedMonth || searching}
+          >
+            {searching ? '⏳ 조회 중...' : '🔍 조회'}
+          </button>
+        </div>
+
+        {/* 조회 결과 */}
+        {searching && (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '32px 0', fontSize: 14 }}>
+            SMS를 읽어오고 있습니다...
           </div>
+        )}
 
-          {/* 월 선택 */}
-          {selectedYear && monthsForYear.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>월</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {monthsForYear.map(m => (
-                  <button key={m} onClick={() => setSelectedMonth(m)} style={{
-                    padding: '6px 16px', border: 'none', borderRadius: 20, cursor: 'pointer',
-                    fontFamily: 'var(--font)', fontSize: 13, fontWeight: selectedMonth === m ? 700 : 400,
-                    background: selectedMonth === m ? 'var(--accent)' : 'var(--surface)',
-                    color: selectedMonth === m ? '#fff' : 'var(--text)',
-                    transition: 'all 0.15s',
-                  }}>{parseInt(m)}월</button>
-                ))}
-              </div>
+        {!searching && searchResults !== null && (<>
+          {Object.keys(searchResults).length === 0 ? (
+            <div style={{
+              textAlign: 'center', color: 'var(--text3)', fontSize: 14,
+              padding: '40px 16px', lineHeight: 2,
+            }}>
+              {selectedYear}년 {parseInt(selectedMonth)}월<br />
+              "[참바른글씨]" 등원 문자가 없습니다.
             </div>
-          )}
-
-          {/* 일별 출석 목록 */}
-          {selectedYear && selectedMonth && (<>
+          ) : (<>
             <div style={{
               fontSize: 13, color: 'var(--text2)', fontWeight: 600, marginBottom: 10,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span>{selectedYear}년 {parseInt(selectedMonth)}월</span>
+              <span>{selectedYear}년 {parseInt(selectedMonth)}월 조회 결과</span>
               <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 400 }}>
-                {filteredDates.length}일 · 총 {totalForPeriod}건
+                {Object.keys(searchResults).length}일 ·{' '}
+                총 {Object.values(searchResults).reduce((s,a)=>s+a.length,0)}건
               </span>
             </div>
-
-            {filteredDates.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 14, padding: '32px 0' }}>
-                해당 월의 출석 이력이 없습니다.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filteredDates.map(dateStr => {
-                  const entries = (records[dateStr] || []).map(toEntry)
-                  const y  = dateStr.slice(0,4)
-                  const mo = dateStr.slice(4,6)
-                  const d  = dateStr.slice(6,8)
-                  const dow = new Date(parseInt(y), parseInt(mo)-1, parseInt(d)).getDay()
-                  const isWeekend = dow === 0 || dow === 6
-                  return (
-                    <div key={dateStr} className="card" style={{ padding: '12px 16px' }}>
-                      <div style={{
-                        display: 'flex', justifyContent: 'space-between',
-                        alignItems: 'center', marginBottom: 10,
-                      }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: isWeekend ? 'var(--red)' : 'var(--text)' }}>
-                          {parseInt(y)}년 {parseInt(mo)}월 {parseInt(d)}일 ({DAYS_KR[dow]})
-                        </span>
-                        <span className="badge">{entries.length}명</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {entries.map((entry, idx) => (
-                          <div key={idx} style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                            padding: '6px 10px', borderRadius: 8,
-                            background: 'rgba(37,99,235,0.06)',
-                          }}>
-                            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--accent)' }}>
-                              {entry.name}
-                            </span>
-                            {entry.time && (
-                              <span style={{ fontSize: 12, color: 'var(--text3)' }}>
-                                {formatTime(entry.time)}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {Object.keys(searchResults).sort().reverse().map(dateStr => {
+                const entries = searchResults[dateStr]
+                const y  = dateStr.slice(0,4)
+                const mo = dateStr.slice(4,6)
+                const d  = dateStr.slice(6,8)
+                const dow = new Date(parseInt(y), parseInt(mo)-1, parseInt(d)).getDay()
+                const isWeekend = dow === 0 || dow === 6
+                return (
+                  <div key={dateStr} className="card" style={{ padding: '12px 16px' }}>
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', marginBottom: 10,
+                    }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: isWeekend ? 'var(--red)' : 'var(--text)' }}>
+                        {parseInt(y)}년 {parseInt(mo)}월 {parseInt(d)}일 ({DAYS_KR[dow]})
+                      </span>
+                      <span className="badge">{entries.length}명</span>
                     </div>
-                  )
-                })}
-              </div>
-            )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {entries.map((entry, idx) => (
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '6px 10px', borderRadius: 8,
+                          background: 'rgba(37,99,235,0.06)',
+                        }}>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--accent)' }}>
+                            {entry.name}
+                          </span>
+                          {entry.time && (
+                            <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                              {formatTime(entry.time)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </>)}
         </>)}
+
+        {searchResults === null && !searching && (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '32px 0', lineHeight: 2 }}>
+            년도와 월을 선택 후<br /><strong style={{color:'var(--text2)'}}>조회</strong> 버튼을 눌러주세요.
+          </div>
+        )}
       </>)}
 
       {/* ──────────── 학생 관리 탭 ──────────── */}
