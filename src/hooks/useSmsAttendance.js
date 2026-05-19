@@ -47,14 +47,14 @@ export async function requestSmsPermission() {
 }
 
 // SMS 이력 읽기
-export async function readSmsHistory() {
+export async function readSmsHistory(limit = 5000) {
   console.log('[SMS] readSmsHistory - isNative:', Capacitor.isNativePlatform())
   if (!Capacitor.isNativePlatform()) return []
   try {
     const SmsPlugin = registerPlugin('SmsPlugin')
-    console.log('[SMS] readSmsHistory 호출 (limit: 500)')
-    const result = await SmsPlugin.readSmsHistory({ limit: 500 })
-    console.log('[SMS] 결과:', result?.items?.length ?? 0, '건', result?.items?.slice(0, 3))
+    console.log(`[SMS] readSmsHistory 호출 (limit: ${limit})`)
+    const result = await SmsPlugin.readSmsHistory({ limit })
+    console.log('[SMS] 결과:', result?.items?.length ?? 0, '건')
     return result.items || []
   } catch (e) {
     console.error('[SMS] readSmsHistory 오류:', e)
