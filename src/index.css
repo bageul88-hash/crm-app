@@ -155,7 +155,7 @@ button { cursor: pointer; }
   font-family: var(--font);
 }
 
-.app-main { flex: 1; overflow-y: auto; padding-bottom: 78px; }
+.app-main { flex: 1; overflow-y: auto; padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 
 .list-page { display: flex; flex-direction: column; height: 100%; }
 
@@ -360,13 +360,15 @@ button { cursor: pointer; }
   transform: translateX(-50%);
   width: 100%;
   max-width: 430px;
-  height: 64px;
+  min-height: 64px;
+  height: calc(64px + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: stretch;
   background: rgba(255, 255, 255, 0.97);
   border-top: 1px solid var(--border);
   box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
   z-index: 200;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .bottom-nav-btn {
   flex: 1;
@@ -419,6 +421,18 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.6; }
 
 .center-box { display: flex; justify-content: center; padding: 40px; }
 .empty-box { padding: 60px 10px; text-align: center; color: var(--text3); font-size: 14px; font-weight: 700; line-height: 2; }
+.top-loading-bar {
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: loadingSlide 1.4s ease-in-out infinite;
+  border-radius: 2px;
+  margin: 2px 0 6px;
+}
+@keyframes loadingSlide {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 .error-box { background: #fee2e2; border: 1px solid #fecaca; border-radius: 14px; padding: 14px; color: #dc2626; font-size: 13px; font-weight: 800; }
 
 .spinner {

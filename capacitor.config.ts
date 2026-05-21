@@ -4,10 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.pentwo.crmapp',
   appName: '상담 CRM',
   webDir: 'dist',
-  server: {
-    url: 'https://crm-app-sj7m.onrender.com',
-    cleartext: false,
-  },
   android: {
     allowMixedContent: true,
     backgroundColor: '#0f1117',

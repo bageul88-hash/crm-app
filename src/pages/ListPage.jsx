@@ -289,14 +289,19 @@ export default function ListPage() {
       )}
 
       <div className="list-scroll-body">
-        {loading && <div className="center-box"><div className="spinner" /></div>}
+        {loading && <div className="top-loading-bar" />}
         {error && !loading && <div className="error-box">{error}</div>}
+        {loading && filtered.length === 0 && (
+          <div className="empty-box" style={{ color: 'var(--text3)', fontSize: 13, fontWeight: 500 }}>
+            데이터를 불러오는 중입니다...
+          </div>
+        )}
         {!loading && !error && filtered.length === 0 && (
           <div className="empty-box">
             {search ? '검색 결과가 없습니다' : '등록된 상담이 없습니다'}
           </div>
         )}
-        {!loading && filtered.length > 0 && (
+        {filtered.length > 0 && (
           <div className="consult-list">
             {filtered.map(c => (
               <ConsultCard

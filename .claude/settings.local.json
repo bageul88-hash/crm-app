@@ -27,7 +27,11 @@
       "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb -s ce10171a82ba18070d7e uninstall com.pentwo.crmapp 2>&1)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(adb devices *)"
+      "Bash(adb devices *)",
+      "PowerShell($env:JAVA_HOME)",
+      "Bash(git -C \"E:\\\\crm-app\" status --short)",
+      "Bash(where java *)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"E:\\\\crm-app\\\\android\"; .\\\\gradlew.bat assembleRelease 2>&1)"
     ]
   }
 }

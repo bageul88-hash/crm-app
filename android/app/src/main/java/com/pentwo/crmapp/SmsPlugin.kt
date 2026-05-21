@@ -42,7 +42,6 @@ class SmsPlugin : Plugin() {
         call.resolve()
     }
 
-    // 현재 SMS 권한 상태 확인
     @PluginMethod
     fun checkSmsPermission(call: PluginCall) {
         val granted = getPermissionState("readSms") == PermissionState.GRANTED
@@ -52,12 +51,10 @@ class SmsPlugin : Plugin() {
         call.resolve(ret)
     }
 
-    // Android 시스템 권한 요청 다이얼로그 표시
     @PluginMethod
     fun requestSmsPermission(call: PluginCall) {
         Log.d("CRM_SMS", "requestSmsPermission 호출")
         if (getPermissionState("readSms") == PermissionState.GRANTED) {
-            Log.d("CRM_SMS", "이미 권한 있음")
             val ret = JSObject()
             ret.put("granted", true)
             call.resolve(ret)
@@ -79,26 +76,39 @@ class SmsPlugin : Plugin() {
     fun readSmsHistory(call: PluginCall) {
         val limit = call.getInt("limit", 500) ?: 500
         val results = JSArray()
+        var totalScanned = 0
+        var keywordMatched = 0
 
         try {
+            // SQL LIKE 한글 필터 대신 전체 inbox를 읽고 Kotlin에서 필터링
+            // (일부 기기에서 한글 LIKE 쿼리가 동작하지 않는 문제 방지)
             val cursor = context.contentResolver.query(
-                Uri.parse("content://sms/inbox"),
+                Uri.parse("content://sms"),
                 arrayOf("_id", "body", "date"),
-                "body LIKE ?",
-                arrayOf("%참바른글씨%"),
+                null,
+                null,
                 "date DESC"
             )
 
-            var count = 0
             cursor?.use {
                 val bodyIdx = it.getColumnIndex("body")
                 val dateIdx = it.getColumnIndex("date")
 
-                while (it.moveToNext() && count < limit) {
+                while (it.moveToNext() && results.length() < limit) {
+                    totalScanned++
                     val body      = if (bodyIdx >= 0) it.getString(bodyIdx) ?: "" else ""
                     val timestamp = if (dateIdx >= 0) it.getLong(dateIdx) else 0L
 
-                    val studentName = parseStudentName(body) ?: continue
+                    // Kotlin contains()로 필터 (SQL LIKE 인코딩 이슈 회피)
+                    if (!body.contains("참바른글씨")) continue
+                    keywordMatched++
+
+                    val studentName = parseStudentName(body)
+                    if (studentName == null) {
+                        Log.w("CRM_SMS", "파싱실패: ${body.take(100)}")
+                        continue
+                    }
+
                     val smsDate = Date(timestamp)
                     val dateStr = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(smsDate)
                     val timeStr = SimpleDateFormat("HH:mm",    Locale.getDefault()).format(smsDate)
@@ -108,16 +118,18 @@ class SmsPlugin : Plugin() {
                     item.put("date", dateStr)
                     item.put("time", timeStr)
                     results.put(item)
-                    count++
                 }
             }
-            Log.d("CRM_SMS", "SMS 이력 읽기 완료: ${results.length()}건")
+
+            Log.d("CRM_SMS", "완료: 스캔=${totalScanned} 키워드=${keywordMatched} 파싱=${results.length()}")
         } catch (e: Exception) {
-            Log.e("CRM_SMS", "SMS 이력 읽기 오류: ${e.message}")
+            Log.e("CRM_SMS", "SMS 읽기 오류", e)
         }
 
         val ret = JSObject()
         ret.put("items", results)
+        ret.put("debug_scanned", totalScanned)
+        ret.put("debug_matched", keywordMatched)
         call.resolve(ret)
     }
 
@@ -158,9 +170,13 @@ class SmsPlugin : Plugin() {
         Log.d("CRM_SMS", "SMS 수신 리스너 등록 완료")
     }
 
-    // [참바른글씨] OOO 학생이 등원하였습니다.
+    // "[참바른글씨] OOO 학생이 등원하였습니다" 패턴에서 이름 추출
+    // \s*학생이 : 이름과 "학생이" 사이 공백 0개 이상 허용 (공백 없는 경우 포함)
     private fun parseStudentName(body: String): String? {
-        val regex = Regex("""\[참바른글씨\]\s+(.+?)\s+학생이\s+등원하였습니다""")
+        val regex = Regex(
+            """\[참바른글씨\]\s*(.+?)\s*학생이""",
+            RegexOption.DOT_MATCHES_ALL
+        )
         return regex.find(body)?.groupValues?.getOrNull(1)?.trim()
     }
 

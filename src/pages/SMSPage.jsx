@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
+import { filterByTab } from '../api/sheets'
 import dayjs from 'dayjs'
 
 const TOP_TABS = ['전체', '예약', '문의', '수업중', '수업종료']
@@ -13,6 +14,30 @@ const RESULT_COLOR = {
   펑크: 'var(--pink)',
 }
 
+const MAX_DAYS = 1095
+const TICKS = [
+  { val: 30,   label: '1개월', showLabel: false },
+  { val: 90,   label: '3개월', showLabel: false },
+  { val: 180,  label: '6개월', showLabel: true  },
+  { val: 365,  label: '1년',   showLabel: true  },
+  { val: 730,  label: '2년',   showLabel: true  },
+  { val: 1095, label: '3년',   showLabel: true  },
+]
+
+function fmtDays(d) {
+  if (d === 0)    return '전체'
+  if (d === 30)   return '1개월'
+  if (d === 60)   return '2개월'
+  if (d === 90)   return '3개월'
+  if (d === 120)  return '4개월'
+  if (d === 150)  return '5개월'
+  if (d === 180)  return '6개월'
+  if (d === 365)  return '1년'
+  if (d === 730)  return '2년'
+  if (d === 1095) return '3년'
+  return `${d}일`
+}
+
 const TEMPLATES = [
   { key: 'studentReserve', label: '학생 진단·예약' },
   { key: 'generalReserve', label: '일반인 진단·예약' },
@@ -22,10 +47,6 @@ const TEMPLATES = [
   { key: 'examAsk', label: '고시생 문의' },
   { key: 'classing', label: '수업중 안내' },
 ]
-
-const isOnlyReserved = c =>
-  c.category === '예약' &&
-  (!c.diagResult || String(c.diagResult).trim() === '')
 
 function fmtDate(val) {
   if (!val) return ''
@@ -241,8 +262,7 @@ ${name} 학생의 수업일정
 export default function SMSPage() {
   const { consults } = useApp()
 
-  const [topTab, setTopTab] = useState('전체')
-  const [botTab, setBotTab] = useState(null)
+  const [activeTab, setActiveTab] = useState('전체')
   const [daysBefore, setDaysBefore] = useState(30)
   const [checkedIds, setCheckedIds] = useState(new Set())
 
@@ -255,25 +275,8 @@ export default function SMSPage() {
     [daysBefore]
   )
 
-  const topFiltered = useMemo(() => {
-    let list = consults
-    if (topTab === '예약') list = list.filter(isOnlyReserved)
-    else if (topTab === '문의') list = list.filter(c => c.category === '문의')
-    else if (topTab === '수업중') list = list.filter(c => c.category === '수업중' || c.diagResult === '수업중')
-    else if (topTab === '수업종료') list = list.filter(c => c.category === '수업종료')
-    return list
-  }, [consults, topTab])
-
   const targets = useMemo(() => {
-    let list = topFiltered
-
-    if (botTab) {
-      if (botTab === '가맹') {
-        list = list.filter(c => c.diagResult === '가맹' || c.category === '가맹')
-      } else {
-        list = list.filter(c => c.diagResult === botTab)
-      }
-    }
+    let list = filterByTab(consults, activeTab)
 
     if (daysBefore) {
       list = list.filter(c => {
@@ -284,7 +287,7 @@ export default function SMSPage() {
     }
 
     return [...list].sort((a, b) => b.id - a.id)
-  }, [topFiltered, botTab, cutoff, daysBefore])
+  }, [consults, activeTab, cutoff, daysBefore])
 
   // targets 변경 시 전체 체크로 초기화
   useEffect(() => {
@@ -318,22 +321,11 @@ export default function SMSPage() {
 
   const counts = useMemo(() => {
     const map = {}
-    map['전체'] = consults.length
-    map['예약'] = consults.filter(isOnlyReserved).length
-    map['문의'] = consults.filter(c => c.category === '문의').length
-    map['수업중'] = consults.filter(c => c.category === '수업중' || c.diagResult === '수업중').length
-    map['수업종료'] = consults.filter(c => c.category === '수업종료').length
-
-    BOT_TABS.forEach(t => {
-      if (t === '가맹') {
-        map[t] = topFiltered.filter(c => c.diagResult === '가맹' || c.category === '가맹').length
-      } else {
-        map[t] = topFiltered.filter(c => c.diagResult === t).length
-      }
+    ;[...TOP_TABS, ...BOT_TABS].forEach(t => {
+      map[t] = filterByTab(consults, t).length
     })
-
     return map
-  }, [consults, topFiltered])
+  }, [consults])
 
   const firstTarget = checkedTargets[0] ?? selectedTargets[0]
   const previewText = customText || makeSmsBody(firstTarget, templateKey)
@@ -405,8 +397,8 @@ export default function SMSPage() {
             key={t}
             label={t}
             count={counts[t]}
-            active={topTab === t}
-            onClick={() => { setTopTab(t); setBotTab(null) }}
+            active={activeTab === t}
+            onClick={() => setActiveTab(t)}
           />
         ))}
       </div>
@@ -417,8 +409,8 @@ export default function SMSPage() {
             key={t}
             label={t}
             count={counts[t]}
-            active={botTab === t}
-            onClick={() => setBotTab(botTab === t ? null : t)}
+            active={activeTab === t}
+            onClick={() => setActiveTab(t)}
           />
         ))}
       </div>
@@ -426,16 +418,34 @@ export default function SMSPage() {
       <div className="card" style={{ marginBottom: 16 }}>
         <label className="label">최근 N일 이내 문의</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-          <input
-            type="range"
-            min={0}
-            max={365}
-            value={daysBefore}
-            onChange={e => setDaysBefore(Number(e.target.value))}
-            style={{ flex: 1, accentColor: 'var(--accent)' }}
-          />
-          <span style={{ minWidth: 56, fontSize: 14, fontWeight: 600, color: 'var(--accent)', textAlign: 'right' }}>
-            {daysBefore === 0 ? '전체' : `${daysBefore}일`}
+          <div style={{ flex: 1 }}>
+            <input
+              type="range"
+              min={0}
+              max={MAX_DAYS}
+              value={daysBefore}
+              onChange={e => setDaysBefore(Number(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--accent)' }}
+            />
+            <div style={{ position: 'relative', height: 28, marginTop: 2 }}>
+              {TICKS.map(({ val, label, showLabel }) => {
+                const pct = (val / MAX_DAYS) * 100
+                const active = daysBefore >= val
+                return (
+                  <div key={val} style={{ position: 'absolute', left: `${pct}%`, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: 2, height: 6, background: active ? 'var(--accent)' : '#d1d5db', borderRadius: 1 }} />
+                    {showLabel && (
+                      <span style={{ fontSize: 10, color: active ? 'var(--accent)' : 'var(--text3)', fontWeight: active ? 700 : 400, whiteSpace: 'nowrap', marginTop: 2 }}>
+                        {label}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <span style={{ minWidth: 48, fontSize: 14, fontWeight: 600, color: 'var(--accent)', textAlign: 'right' }}>
+            {fmtDays(daysBefore)}
           </span>
         </div>
       </div>

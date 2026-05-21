@@ -1,63 +1,55 @@
 import { useEffect } from 'react'
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { registerPlugin } from '@capacitor/core'
+
+// isNativePlatform() 체크 제거 — 브릿지 초기화 타이밍 이슈 방지
+// 플러그인 호출 실패 시 catch에서 빈값 반환
+const SmsPlugin = registerPlugin('SmsPlugin')
 
 export function useSmsAttendance(onStudentArrival) {
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return
-
-    const SmsPlugin = registerPlugin('SmsPlugin')
     let handle
     SmsPlugin.addListener('smsAttendance', ({ studentName, time }) => {
       console.log('[SMS수신] 등원 감지:', studentName, time)
       onStudentArrival?.(studentName, time)
-    }).then(h => { handle = h })
+    }).then(h => { handle = h }).catch(() => {})
 
     return () => { handle?.remove() }
   }, [onStudentArrival])
 }
 
-// 현재 권한 상태 확인
 export async function checkSmsPermission() {
-  console.log('[SMS] checkSmsPermission - isNative:', Capacitor.isNativePlatform())
-  if (!Capacitor.isNativePlatform()) return true
   try {
-    const SmsPlugin = registerPlugin('SmsPlugin')
     const result = await SmsPlugin.checkSmsPermission()
     console.log('[SMS] 권한 상태:', result)
     return result.granted === true
   } catch (e) {
-    console.error('[SMS] checkSmsPermission 오류:', e)
+    console.warn('[SMS] checkSmsPermission 실패 (웹 환경이거나 플러그인 미등록):', e?.message)
     return false
   }
 }
 
-// Android 시스템 권한 요청 다이얼로그 표시
 export async function requestSmsPermission() {
-  console.log('[SMS] requestSmsPermission - isNative:', Capacitor.isNativePlatform())
-  if (!Capacitor.isNativePlatform()) return true
   try {
-    const SmsPlugin = registerPlugin('SmsPlugin')
     const result = await SmsPlugin.requestSmsPermission()
     console.log('[SMS] 권한 요청 결과:', result)
     return result.granted === true
   } catch (e) {
-    console.error('[SMS] requestSmsPermission 오류:', e)
+    console.warn('[SMS] requestSmsPermission 실패:', e?.message)
     return false
   }
 }
 
-// SMS 이력 읽기
 export async function readSmsHistory(limit = 5000) {
-  console.log('[SMS] readSmsHistory - isNative:', Capacitor.isNativePlatform())
-  if (!Capacitor.isNativePlatform()) return []
   try {
-    const SmsPlugin = registerPlugin('SmsPlugin')
     console.log(`[SMS] readSmsHistory 호출 (limit: ${limit})`)
     const result = await SmsPlugin.readSmsHistory({ limit })
-    console.log('[SMS] 결과:', result?.items?.length ?? 0, '건')
-    return result.items || []
+    const items = result.items || []
+    const scanned = result.debug_scanned ?? 0
+    const matched = result.debug_matched ?? 0
+    console.log(`[SMS] 완료: 스캔=${scanned} 키워드=${matched} 파싱=${items.length}건`)
+    return { items, scanned, matched }
   } catch (e) {
     console.error('[SMS] readSmsHistory 오류:', e)
-    return []
+    return { items: [], scanned: 0, matched: 0 }
   }
 }
