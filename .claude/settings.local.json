@@ -31,7 +31,9 @@
       "PowerShell($env:JAVA_HOME)",
       "Bash(git -C \"E:\\\\crm-app\" status --short)",
       "Bash(where java *)",
-      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"E:\\\\crm-app\\\\android\"; .\\\\gradlew.bat assembleRelease 2>&1)"
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"E:\\\\crm-app\\\\android\"; .\\\\gradlew.bat assembleRelease 2>&1)",
+      "Bash(curl -s \"https://crm-app-sj7m.onrender.com\")",
+      "Bash(git -C \"E:\\\\crm-app\" log --oneline -3)"
     ]
   }
 }
