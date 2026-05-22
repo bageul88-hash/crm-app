@@ -6,12 +6,65 @@ import { BRANCHES } from '../auth/users'
 import ConsultCard from '../components/ConsultCard'
 
 export default function BranchPage() {
-  const { allConsults, remove } = useApp()
+  const { allConsults, remove, adminUpdateBranch, branchOverrides, getEffectivePw, login } = useApp()
   const navigate = useNavigate()
 
   const [selectedBranch, setSelectedBranch] = useState(null)
   const [tab, setTab] = useState('전체')
   const [search, setSearch] = useState('')
+
+  // 지사 편집 모달
+  const [editTarget, setEditTarget] = useState(null)
+  const [editForm, setEditForm] = useState({ displayName: '', principalName: '', loginId: '', newPassword: '' })
+  const [editMsg, setEditMsg] = useState(null)
+
+  const openEdit = (e, branch) => {
+    e.stopPropagation()
+    const ov = branchOverrides[branch.id] || {}
+    setEditTarget(branch)
+    setEditForm({
+      displayName: ov.displayName || branch.name,
+      principalName: ov.principalName || `${branch.name} 원장`,
+      loginId: ov.loginId || branch.id,
+      newPassword: '',
+    })
+    setEditMsg(null)
+  }
+
+  const closeEdit = () => {
+    setEditTarget(null)
+    setEditForm({ displayName: '', principalName: '', loginId: '', newPassword: '' })
+    setEditMsg(null)
+  }
+
+  const handleSaveEdit = () => {
+    try {
+      if (editForm.newPassword.trim() && editForm.newPassword.trim().length < 4) {
+        setEditMsg({ ok: false, text: '비밀번호는 4자 이상이어야 합니다' })
+        return
+      }
+      adminUpdateBranch(editTarget.id, {
+        displayName: editForm.displayName.trim() || undefined,
+        principalName: editForm.principalName.trim() || undefined,
+        loginId: editForm.loginId.trim() || undefined,
+        newPassword: editForm.newPassword.trim() || undefined,
+      })
+      setEditMsg({ ok: true, text: '저장되었습니다.' })
+      setEditForm(f => ({ ...f, newPassword: '' }))
+    } catch (e) {
+      setEditMsg({ ok: false, text: e.message })
+    }
+  }
+
+  const handleLoginAsBranch = () => {
+    try {
+      const pw = getEffectivePw(editTarget.id)
+      login(editTarget.id, pw)
+      navigate('/')
+    } catch (e) {
+      setEditMsg({ ok: false, text: e.message })
+    }
+  }
 
   const branchConsults = useMemo(() => {
     if (!selectedBranch) return []
@@ -57,35 +110,140 @@ export default function BranchPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {BRANCHES.map(b => {
             const cnt = allConsults.filter(c => c.branchId === b.id).length
+            const ov = branchOverrides[b.id] || {}
+            const displayName = ov.displayName || b.name
+            const principalName = ov.principalName || `${b.name} 원장`
             return (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => { setSelectedBranch(b); setTab('전체'); setSearch('') }}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  padding: '18px 8px',
-                  background: '#fff',
-                  border: '1px solid var(--border)',
-                  borderRadius: 14,
-                  boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--accent)', letterSpacing: '-0.04em' }}>
-                  {b.name}
-                </span>
-                <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>
-                  {cnt}건
-                </span>
-              </button>
+              <div key={b.id} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedBranch(b); setTab('전체'); setSearch('') }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    padding: '14px 8px 30px',
+                    background: '#fff',
+                    border: '1px solid var(--border)',
+                    borderRadius: 14,
+                    boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--accent)', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                    {displayName}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 600 }}>
+                    {principalName}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 500 }}>
+                    {cnt}건
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={e => openEdit(e, b)}
+                  style={{
+                    position: 'absolute', bottom: 7, left: '50%', transform: 'translateX(-50%)',
+                    fontSize: 10, padding: '2px 8px', borderRadius: 6,
+                    border: '1px solid var(--border)', background: '#f3f4f6',
+                    color: 'var(--text3)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
+                  }}
+                >
+                  편집
+                </button>
+              </div>
             )
           })}
         </div>
+
+        {/* 지사 편집 모달 */}
+        {editTarget && (
+          <div onClick={closeEdit}
+            style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <div onClick={e => e.stopPropagation()}
+              style={{ width: '100%', maxWidth: 430, background: '#fff', borderRadius: '18px 18px 0 0', padding: '24px 20px 32px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 800 }}>{editTarget.name} 지사 편집</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 3 }}>관리자 전용</div>
+                </div>
+                <button type="button" onClick={closeEdit}
+                  style={{ fontSize: 22, background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', lineHeight: 1 }}>✕</button>
+              </div>
+
+              {/* 지사명 */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginBottom: 6 }}>지사명</div>
+                <input className="input" type="text" placeholder="지사명"
+                  value={editForm.displayName}
+                  onChange={e => { setEditForm(f => ({ ...f, displayName: e.target.value })); setEditMsg(null) }}
+                  style={{ fontSize: 14 }} />
+              </div>
+
+              {/* 원장명 */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginBottom: 6 }}>원장명</div>
+                <input className="input" type="text" placeholder="원장명"
+                  value={editForm.principalName}
+                  onChange={e => { setEditForm(f => ({ ...f, principalName: e.target.value })); setEditMsg(null) }}
+                  style={{ fontSize: 14 }} />
+              </div>
+
+              {/* 아이디 */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginBottom: 6 }}>아이디</div>
+                <input className="input" type="text" placeholder="로그인 아이디"
+                  value={editForm.loginId}
+                  onChange={e => { setEditForm(f => ({ ...f, loginId: e.target.value })); setEditMsg(null) }}
+                  style={{ fontSize: 14, letterSpacing: 0.5 }} />
+              </div>
+
+              {/* 현재 비밀번호 표시 */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginBottom: 6 }}>현재 비밀번호</div>
+                <div style={{ padding: '11px 14px', background: '#f3f4f6', borderRadius: 10, fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 2 }}>
+                  {getEffectivePw(editTarget.id)}
+                </div>
+              </div>
+
+              {/* 새 비밀번호 */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginBottom: 6 }}>새 비밀번호 (변경 시 입력, 4자 이상)</div>
+                <input className="input" type="text" placeholder="변경할 비밀번호 (미입력 시 유지)"
+                  value={editForm.newPassword}
+                  onChange={e => { setEditForm(f => ({ ...f, newPassword: e.target.value })); setEditMsg(null) }}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveEdit()}
+                  style={{ fontSize: 14, letterSpacing: 0.5 }} />
+              </div>
+
+              {editMsg && (
+                <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600,
+                  background: editMsg.ok ? '#f0fdf4' : '#fee2e2',
+                  color: editMsg.ok ? '#15803d' : 'var(--red)' }}>
+                  {editMsg.ok ? '✅ ' : '❌ '}{editMsg.text}
+                </div>
+              )}
+
+              <button type="button" onClick={handleSaveEdit}
+                style={{ width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+                  background: 'var(--accent)',
+                  color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+                저장
+              </button>
+
+              <button type="button" onClick={handleLoginAsBranch}
+                style={{ width: '100%', padding: '13px', borderRadius: 12, marginTop: 10,
+                  border: '1.5px solid var(--accent)', background: '#fff',
+                  color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                이 지사로 로그인
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

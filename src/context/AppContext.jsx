@@ -13,6 +13,7 @@ const AppContext = createContext(null)
 const USER_KEY = 'crm_user'
 const CREDS_KEY = 'crm_credentials'
 const PW_OVERRIDES_KEY = 'crm_pw_overrides'
+const BRANCH_OVERRIDES_KEY = 'crm_branch_overrides'
 const CACHE_KEY = 'crm_consults_cache'
 
 function loadCache() {
@@ -33,6 +34,10 @@ function getEffectivePassword(userId) {
   } catch {
     return null
   }
+}
+
+function getBranchOverrides() {
+  try { return JSON.parse(localStorage.getItem(BRANCH_OVERRIDES_KEY) || '{}') } catch { return {} }
 }
 
 function getSavedUser() {
@@ -61,6 +66,9 @@ function getSavedUser() {
 }
 
 export function AppProvider({ children }) {
+  const [branchOverrides, setBranchOverrides] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(BRANCH_OVERRIDES_KEY) || '{}') } catch { return {} }
+  })
   const [consults, setConsults] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -68,27 +76,75 @@ export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(getSavedUser)
 
   const login = useCallback((id, password) => {
-    const user = USERS.find(u => u.id === id)
+    let user = USERS.find(u => u.id === id)
+    if (!user) {
+      const branchOvs = getBranchOverrides()
+      for (const [origId, ov] of Object.entries(branchOvs)) {
+        if (ov.loginId === id) { user = USERS.find(u => u.id === origId); break }
+      }
+    }
     if (!user) throw new Error('아이디 또는 비밀번호가 맞지 않습니다')
 
-    const effective = getEffectivePassword(id) || user.password
+    const effective = getEffectivePassword(user.id) || user.password
     if (effective !== password) throw new Error('아이디 또는 비밀번호가 맞지 않습니다')
 
-    localStorage.setItem(CREDS_KEY, JSON.stringify({ id, password }))
+    localStorage.setItem(CREDS_KEY, JSON.stringify({ id: user.id, password }))
     localStorage.setItem(USER_KEY, JSON.stringify(user))
     setCurrentUser(user)
   }, [])
 
-  const changePassword = useCallback((userId, currentPw, newPw) => {
+  const adminSetPassword = useCallback((userId, newPw) => {
+    if (currentUser?.role !== 'admin') throw new Error('관리자만 변경할 수 있습니다')
     const user = USERS.find(u => u.id === userId)
+    if (!user) throw new Error('아이디를 찾을 수 없습니다')
+    if (newPw.length < 4) throw new Error('비밀번호는 4자 이상이어야 합니다')
+    const overrides = JSON.parse(localStorage.getItem(PW_OVERRIDES_KEY) || '{}')
+    overrides[userId] = newPw
+    localStorage.setItem(PW_OVERRIDES_KEY, JSON.stringify(overrides))
+  }, [currentUser])
+
+  const adminUpdateBranch = useCallback((branchId, { displayName, principalName, loginId, newPassword }) => {
+    if (currentUser?.role !== 'admin') throw new Error('관리자만 변경할 수 있습니다')
+    const updated = {
+      ...branchOverrides,
+      [branchId]: {
+        ...(branchOverrides[branchId] || {}),
+        ...(displayName !== undefined && { displayName }),
+        ...(principalName !== undefined && { principalName }),
+        ...(loginId !== undefined && { loginId }),
+      },
+    }
+    localStorage.setItem(BRANCH_OVERRIDES_KEY, JSON.stringify(updated))
+    setBranchOverrides(updated)
+    if (newPassword) {
+      if (newPassword.length < 4) throw new Error('비밀번호는 4자 이상이어야 합니다')
+      const pwOvs = JSON.parse(localStorage.getItem(PW_OVERRIDES_KEY) || '{}')
+      pwOvs[branchId] = newPassword
+      localStorage.setItem(PW_OVERRIDES_KEY, JSON.stringify(pwOvs))
+    }
+  }, [currentUser, branchOverrides])
+
+  const getEffectivePw = useCallback((userId) => {
+    const user = USERS.find(u => u.id === userId)
+    return getEffectivePassword(userId) || user?.password || ''
+  }, [])
+
+  const changePassword = useCallback((userId, currentPw, newPw) => {
+    let user = USERS.find(u => u.id === userId)
+    if (!user) {
+      const branchOvs = getBranchOverrides()
+      for (const [origId, ov] of Object.entries(branchOvs)) {
+        if (ov.loginId === userId) { user = USERS.find(u => u.id === origId); break }
+      }
+    }
     if (!user) throw new Error('아이디를 찾을 수 없습니다')
 
     const overrides = JSON.parse(localStorage.getItem(PW_OVERRIDES_KEY) || '{}')
-    const effective = overrides[userId] || user.password
+    const effective = overrides[user.id] || user.password
     if (effective !== currentPw) throw new Error('현재 비밀번호가 맞지 않습니다')
     if (newPw.length < 4) throw new Error('새 비밀번호는 4자 이상이어야 합니다')
 
-    overrides[userId] = newPw
+    overrides[user.id] = newPw
     localStorage.setItem(PW_OVERRIDES_KEY, JSON.stringify(overrides))
 
     // 로그인 유지 정보도 새 비밀번호로 업데이트 (새로고침 시 로그아웃 방지)
@@ -96,8 +152,8 @@ export function AppProvider({ children }) {
       const savedRaw = localStorage.getItem(CREDS_KEY)
       if (savedRaw) {
         const saved = JSON.parse(savedRaw)
-        if (saved.id === userId) {
-          localStorage.setItem(CREDS_KEY, JSON.stringify({ id: userId, password: newPw }))
+        if (saved.id === user.id) {
+          localStorage.setItem(CREDS_KEY, JSON.stringify({ id: user.id, password: newPw }))
         }
       }
     } catch {}
@@ -258,6 +314,10 @@ export function AppProvider({ children }) {
         login,
         logout,
         changePassword,
+        adminSetPassword,
+        adminUpdateBranch,
+        branchOverrides,
+        getEffectivePw,
         consults: visibleConsults,
         allConsults: consults,
         loading,

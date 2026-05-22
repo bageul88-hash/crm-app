@@ -119,10 +119,10 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
         <p className="consult-feature">{c.feature}</p>
       )}
 
-      {(c.inquiryDate || c.diagDate) && (
+      {(c.inquiryDate || (c.diagDate && status !== '예약')) && (
         <div className="consult-dates">
           {c.inquiryDate && <span>📅 {fmtDate(c.inquiryDate)}</span>}
-          {c.diagDate && (
+          {c.diagDate && status !== '예약' && (
             <span>
               🔔 {fmtDate(c.diagDate)}
               {c.diagTime ? ` ${c.diagTime}` : ''}
@@ -144,6 +144,16 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
                 }}
               >
                 {displayStatus}
+              </span>
+            )}
+            {status === '예약' && (c.diagDate || c.diagDay) && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#2563eb', fontWeight: 600, flexWrap: 'wrap' }}>
+                {(c.diagDay || getDayFromDate(c.diagDate)) && (
+                  <span>{c.diagDay || getDayFromDate(c.diagDate)}</span>
+                )}
+                {c.diagDate && (
+                  <span>🔔 {fmtDate(c.diagDate)}{c.diagTime ? ` ${c.diagTime}` : ''}</span>
+                )}
               </span>
             )}
             {lessonText && (

@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -120,10 +121,15 @@ class CallStateService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build()
 
-        startForeground(
-            1001,
-            notification
-        )
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(1001, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(1001, notification)
+            }
+        } catch (e: Exception) {
+            Log.e("CRM", "startForeground 실패: ${e.message}")
+        }
     }
 
     private fun showCrmNotification(phone: String) {

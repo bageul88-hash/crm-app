@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { checkSmsPermission, requestSmsPermission, readSmsHistory } from '../hooks/useSmsAttendance'
 
 const TODAY     = new Date()
@@ -152,6 +152,14 @@ export default function AttendancePage() {
   const monthTotal = grouped.reduce((s, g) => s + g.entries.length, 0)
   const totalAllSaved = Object.values(records).reduce((s, list) => s + (list?.length || 0), 0)
 
+  const studentTotals = useMemo(() => {
+    const map = {}
+    Object.values(records).forEach(list => {
+      ;(list || []).map(toEntry).forEach(e => { map[e.name] = (map[e.name] || 0) + 1 })
+    })
+    return map
+  }, [records])
+
   return (
     <div className="fade-in" style={{ padding: '16px 16px 32px' }}>
 
@@ -207,7 +215,13 @@ export default function AttendancePage() {
                     </td></tr>
                   : todayList.map((e,i) => (
                     <tr key={i}>
-                      <td style={td()}>{e.name}</td>
+                      <td style={td()}>
+                        <span style={{ marginRight:6 }}>{e.name}</span>
+                        <span onClick={() => setSelectedStudent(e.name)}
+                          style={{ fontSize:11, color:'#3b82f6', fontWeight:600, cursor:'pointer' }}>
+                          총 출석 {studentTotals[e.name] || 0}회
+                        </span>
+                      </td>
                       <td style={td({ color:'var(--text2)' })}>{fmtTime(e.time)}</td>
                     </tr>
                   ))
@@ -352,10 +366,13 @@ export default function AttendancePage() {
                   <div style={{ padding:'4px 0' }}>
                     {entries.map((e,i) => (
                       <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 16px', borderBottom: i < entries.length-1 ? '1px solid #f3f4f6' : 'none' }}>
-                        <span onClick={() => setSelectedStudent(e.name)}
-                          style={{ fontSize:14, fontWeight:600, color:'var(--accent)', cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted', textUnderlineOffset:3 }}>
-                          {e.name}
-                        </span>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <span style={{ fontSize:14, fontWeight:600, color:'var(--text)' }}>{e.name}</span>
+                          <span onClick={() => setSelectedStudent(e.name)}
+                            style={{ fontSize:11, color:'#3b82f6', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                            총 출석 {studentTotals[e.name] || 0}회
+                          </span>
+                        </div>
                         <span style={{ fontSize:13, color:'var(--text2)' }}>{fmtTime(e.time)}</span>
                       </div>
                     ))}
