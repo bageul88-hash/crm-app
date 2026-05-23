@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { SMS_TEMPLATES, pickTemplateKey, buildSmsBody } from '../api/smsTemplates'
 import { OPTIONS } from '../api/sheets'
+import { sendSmsAligo, ALIGO_CONFIGURED } from '../api/aligo'
 
 /**
  * SmsModal
@@ -15,6 +16,9 @@ export default function SmsModal({ consult, onClose }) {
   const [body, setBody] = useState('')
   const [editing, setEditing] = useState(false)
   const [sent, setSent] = useState(false)
+  const [sendMode, setSendMode] = useState('app')  // 'app' | 'aligo'
+  const [aligoStatus, setAligoStatus] = useState(null)  // null | 'sending' | 'ok' | 'err'
+  const [aligoMsg, setAligoMsg] = useState('')
 
   useEffect(() => {
     const key = pickTemplateKey(consult.category, consult.relation)
@@ -29,12 +33,26 @@ export default function SmsModal({ consult, onClose }) {
     setEditing(false)
   }
 
-  // 안드로이드 문자앱 열기 (sms: URI 스킴)
-  const handleSend = () => {
+  const handleSend = async () => {
+    if (sendMode === 'aligo') {
+      const phone = consult.phone?.replace(/[^0-9]/g, '') || ''
+      if (!phone) { alert('전화번호가 없습니다.'); return }
+      setAligoStatus('sending')
+      setAligoMsg('')
+      try {
+        const res = await sendSmsAligo({ receivers: [phone], msg: body })
+        setAligoStatus('ok')
+        setAligoMsg(`발송 완료 (${res.sent}건)`)
+        setTimeout(onClose, 1800)
+      } catch (e) {
+        setAligoStatus('err')
+        setAligoMsg(e.message)
+      }
+      return
+    }
+    // Method A: 기본 문자앱 열기
     const phone = consult.phone?.replace(/[^0-9]/g, '') || ''
-    const encoded = encodeURIComponent(body)
-    // sms: URI — 안드로이드 기본 문자앱이 열리면서 번호+내용 자동 입력
-    window.location.href = `sms:${phone}?body=${encoded}`
+    window.location.href = `sms:${phone}?body=${encodeURIComponent(body)}`
     setSent(true)
     setTimeout(onClose, 1500)
   }
@@ -81,6 +99,27 @@ export default function SmsModal({ consult, onClose }) {
             background: 'none', border: 'none', color: 'var(--text3)',
             fontSize: 22, cursor: 'pointer', padding: 4,
           }}>✕</button>
+        </div>
+
+        {/* 발송 방식 선택 */}
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+          {[
+            { key: 'app',   label: '📱 문자앱' },
+            { key: 'aligo', label: '🚀 알리고 API', disabled: !ALIGO_CONFIGURED },
+          ].map(({ key, label, disabled }) => (
+            <button key={key} onClick={() => !disabled && setSendMode(key)}
+              disabled={disabled}
+              style={{
+                flex: 1, padding: '7px 0', borderRadius: 8, border: '1px solid',
+                borderColor: sendMode === key ? 'var(--accent)' : 'var(--border)',
+                background: sendMode === key ? 'rgba(79,126,248,0.12)' : 'transparent',
+                color: disabled ? 'var(--text3)' : (sendMode === key ? 'var(--accent)' : 'var(--text2)'),
+                fontSize: 13, fontWeight: sendMode === key ? 700 : 400,
+                cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'var(--font)',
+              }}>
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* 스크롤 영역 */}
@@ -177,17 +216,29 @@ export default function SmsModal({ consult, onClose }) {
         </div>
 
         {/* 하단 버튼 */}
-        <div style={{
-          padding: '12px 20px 28px',
-          borderTop: '1px solid var(--border)',
-          display: 'flex', gap: 10,
-        }}>
-          <button className="btn btn-ghost" style={{ flex: 1 }}
-            onClick={handleCopy}>복사</button>
-          <button className="btn btn-primary" style={{ flex: 2, fontSize: 15 }}
-            onClick={handleSend} disabled={sent}>
-            {sent ? '✅ 문자앱 열림' : `📱 문자 보내기`}
-          </button>
+        <div style={{ padding: '12px 20px 28px', borderTop: '1px solid var(--border)' }}>
+          {aligoStatus === 'err' && (
+            <div style={{ marginBottom: 8, padding: '8px 12px', background: '#fee2e2', borderRadius: 7, fontSize: 12, color: '#dc2626' }}>
+              ❌ {aligoMsg}
+            </div>
+          )}
+          {aligoStatus === 'ok' && (
+            <div style={{ marginBottom: 8, padding: '8px 12px', background: '#dcfce7', borderRadius: 7, fontSize: 12, color: '#16a34a' }}>
+              ✅ {aligoMsg}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={handleCopy}>복사</button>
+            <button className="btn btn-primary" style={{ flex: 2, fontSize: 15 }}
+              onClick={handleSend}
+              disabled={sent || aligoStatus === 'sending' || aligoStatus === 'ok'}>
+              {aligoStatus === 'sending' ? '⏳ 발송 중...'
+                : aligoStatus === 'ok' ? '✅ 발송 완료'
+                : sent ? '✅ 문자앱 열림'
+                : sendMode === 'aligo' ? '🚀 알리고로 발송'
+                : '📱 문자앱으로 보내기'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
