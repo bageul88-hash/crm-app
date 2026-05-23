@@ -264,6 +264,30 @@ export async function deleteConsult(id) {
   )
 }
 
+export async function fetchBranchConfig() {
+  try {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=getBranchConfig`)
+    if (!res.ok) return {}
+    const json = await res.json()
+    return json.config || {}
+  } catch {
+    return {}
+  }
+}
+
+export async function saveBranchConfig(branchId, { displayName, principalName, loginId }) {
+  return postToSheet(
+    {
+      action: 'setBranchConfig',
+      branchId,
+      displayName: displayName ?? '',
+      principalName: principalName ?? '',
+      loginId: loginId ?? '',
+    },
+    '지사 정보 저장에 실패했습니다'
+  )
+}
+
 function rowToObject(row) {
   const obj = {}
 

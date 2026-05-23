@@ -45,7 +45,7 @@ function getLessonText(item) {
   const day = item.lessonDay || getDayFromDate(item.lessonDate)
   const time = item.lessonTime || ''
   const parts = [date, day, time].filter(Boolean)
-  return parts.length ? `수업중 · ${parts.join(' ')}` : ''
+  return parts.join(' ')
 }
 
 const CATEGORY_ACCENT = {
@@ -157,7 +157,7 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
               </span>
             )}
             {lessonText && (
-              <span className="lesson-chip">{lessonText}</span>
+              <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 500 }}>🔔 {lessonText}</span>
             )}
           </div>
         </div>

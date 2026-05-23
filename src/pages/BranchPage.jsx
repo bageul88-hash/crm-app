@@ -59,13 +59,10 @@ export default function BranchPage() {
     setEditMsg(null)
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     try {
-      if (editForm.newPassword.trim() && editForm.newPassword.trim().length < 4) {
-        setEditMsg({ ok: false, text: '비밀번호는 4자 이상이어야 합니다' })
-        return
-      }
-      adminUpdateBranch(editTarget.id, {
+      setEditMsg({ ok: null, text: '저장 중...' })
+      await adminUpdateBranch(editTarget.id, {
         displayName: editForm.displayName.trim() || undefined,
         principalName: editForm.principalName.trim() || undefined,
         loginId: editForm.loginId.trim() || undefined,
@@ -251,9 +248,9 @@ export default function BranchPage() {
 
               {editMsg && (
                 <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600,
-                  background: editMsg.ok ? '#f0fdf4' : '#fee2e2',
-                  color: editMsg.ok ? '#15803d' : 'var(--red)' }}>
-                  {editMsg.ok ? '✅ ' : '❌ '}{editMsg.text}
+                  background: editMsg.ok === true ? '#f0fdf4' : editMsg.ok === false ? '#fee2e2' : '#f3f4f6',
+                  color: editMsg.ok === true ? '#15803d' : editMsg.ok === false ? 'var(--red)' : 'var(--text2)' }}>
+                  {editMsg.ok === true ? '✅ ' : editMsg.ok === false ? '❌ ' : '⏳ '}{editMsg.text}
                 </div>
               )}
 

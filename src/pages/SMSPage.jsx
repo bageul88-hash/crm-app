@@ -3,8 +3,7 @@ import { useApp } from '../context/AppContext'
 import { filterByTab } from '../api/sheets'
 import dayjs from 'dayjs'
 
-const TOP_TABS = ['전체', '예약', '문의', '수업중', '수업종료']
-const BOT_TABS = ['가맹', '미등록', '환불', '연결', '펑크']
+const SMS_TABS = ['예약', '문의', '수업중', '미등록', '연결', '펑크', '환불', '가맹', '전체']
 
 const RESULT_COLOR = {
   등록: 'var(--green)',
@@ -269,6 +268,7 @@ export default function SMSPage() {
   const [selectedTargets, setSelectedTargets] = useState([])
   const [templateKey, setTemplateKey] = useState('generalReserve')
   const [customText, setCustomText] = useState('')
+  const [tabsExpanded, setTabsExpanded] = useState(false)
 
   const cutoff = useMemo(
     () => dayjs().subtract(daysBefore, 'day').format('YYYYMMDD'),
@@ -321,7 +321,7 @@ export default function SMSPage() {
 
   const counts = useMemo(() => {
     const map = {}
-    ;[...TOP_TABS, ...BOT_TABS].forEach(t => {
+    SMS_TABS.forEach(t => {
       map[t] = filterByTab(consults, t).length
     })
     return map
@@ -357,30 +357,6 @@ export default function SMSPage() {
     alert('문자 내용이 복사되었습니다.')
   }
 
-  const TabBtn = ({ label, count, active, onClick }) => (
-    <button
-      onClick={onClick}
-      style={{
-        flexShrink: 0,
-        padding: '6px 12px',
-        borderRadius: 20,
-        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-        background: active ? 'rgba(79,126,248,0.12)' : 'transparent',
-        color: active ? 'var(--accent)' : 'var(--text2)',
-        fontSize: 13,
-        fontWeight: active ? 600 : 400,
-        cursor: 'pointer',
-        fontFamily: 'var(--font)',
-        touchAction: 'manipulation',
-      }}
-    >
-      {label}
-      <span style={{ marginLeft: 4, fontSize: 11, opacity: 0.8 }}>
-        {count ?? 0}
-      </span>
-    </button>
-  )
-
   return (
     <div style={{ padding: 16 }}>
       <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>
@@ -391,28 +367,55 @@ export default function SMSPage() {
         조건에 맞는 고객 연락처를 추출합니다
       </p>
 
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 8 }}>
-        {TOP_TABS.map(t => (
-          <TabBtn
-            key={t}
-            label={t}
-            count={counts[t]}
-            active={activeTab === t}
-            onClick={() => setActiveTab(t)}
-          />
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12 }}>
-        {BOT_TABS.map(t => (
-          <TabBtn
-            key={t}
-            label={t}
-            count={counts[t]}
-            active={activeTab === t}
-            onClick={() => setActiveTab(t)}
-          />
-        ))}
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <div
+          className="tab-wrap"
+          style={{
+            overflow: 'hidden',
+            maxHeight: tabsExpanded ? 'none' : 42,
+            paddingRight: 36,
+          }}
+        >
+          {SMS_TABS.map(t => (
+            <button
+              key={t}
+              className={`category-chip${activeTab === t ? ' active' : ''}`}
+              onClick={() => setActiveTab(t)}
+              style={{
+                border: `1px solid ${activeTab === t ? '#60a5fa' : 'var(--border)'}`,
+                background: 'transparent',
+                cursor: 'pointer',
+                fontFamily: 'var(--font)',
+              }}
+            >
+              {t}
+              <span>{counts[t] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setTabsExpanded(v => !v)}
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 0,
+            width: 28,
+            height: 28,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: 'var(--surface)',
+            cursor: 'pointer',
+            fontSize: 11,
+            transform: tabsExpanded ? 'rotate(180deg)' : 'none',
+            transition: 'transform 0.2s',
+            flexShrink: 0,
+          }}
+        >
+          ▼
+        </button>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

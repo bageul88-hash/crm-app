@@ -14,11 +14,16 @@ import LoginPage from './pages/LoginPage'
 import CallBanner from './components/CallBanner'
 import BottomNav from './components/BottomNav'
 import { useSmsAttendance } from './hooks/useSmsAttendance'
+import { useUpdateCheck } from './hooks/useUpdateCheck'
 
 export default function App() {
-  const { load, currentUser, logout, saveError } = useApp()
+  const { load, currentUser, logout, saveError, branchOverrides } = useApp()
   const navigate = useNavigate()
   const isAdmin = currentUser?.role === 'admin'
+
+  const ov = branchOverrides?.[currentUser?.branchId] || {}
+  const headerBranchName = isAdmin ? '본사' : (ov.displayName || currentUser?.branchName || '')
+  const headerPrincipalName = isAdmin ? '관리자' : (ov.principalName || currentUser?.name || '')
   const [smsToast, setSmsToast] = useState(null)
 
   useEffect(() => {
@@ -51,6 +56,8 @@ export default function App() {
 
   useSmsAttendance(handleSmsAttendance)
 
+  const { update, dismiss } = useUpdateCheck()
+
   // 로그인 전에는 헤더/하단메뉴 없이 로그인 화면만 표시
   if (!currentUser) {
     return <LoginPage />
@@ -67,8 +74,8 @@ export default function App() {
               <strong>CRM</strong>
             </div>
             <div className="user-box">
-              <strong>{currentUser?.branchName || currentUser?.name || '본사'}</strong>
-              <span>{currentUser?.role === 'admin' ? '관리자' : currentUser?.name}</span>
+              <strong>{headerBranchName}</strong>
+              <span>{headerPrincipalName}</span>
             </div>
           </div>
         </button>
@@ -133,6 +140,48 @@ export default function App() {
           whiteSpace: 'nowrap',
         }}>
           {saveError}
+        </div>
+      )}
+
+      {update && (
+        <div style={{
+          position: 'fixed', bottom: 68, left: 0, right: 0, zIndex: 9990,
+          margin: '0 12px',
+          background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
+          borderRadius: 14, padding: '12px 16px',
+          boxShadow: '0 4px 20px rgba(37,99,235,0.45)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 20 }}>🔔</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
+              새 버전 {update.version} 업데이트
+            </div>
+            {update.notes && (
+              <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 2 }}>{update.notes}</div>
+            )}
+          </div>
+          <button
+            onClick={() => window.open(update.apkUrl, '_system')}
+            style={{
+              padding: '7px 14px', borderRadius: 8, border: 'none',
+              background: '#fff', color: '#1d4ed8',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            다운로드
+          </button>
+          <button
+            onClick={dismiss}
+            style={{
+              width: 24, height: 24, borderRadius: '50%', border: 'none',
+              background: 'rgba(255,255,255,0.2)', color: '#fff',
+              fontSize: 14, cursor: 'pointer', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

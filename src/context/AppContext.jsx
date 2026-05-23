@@ -1,10 +1,12 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import {
   fetchConsults,
   addConsult,
   updateConsult,
   deleteConsult,
   cleanPhone,
+  fetchBranchConfig,
+  saveBranchConfig,
 } from '../api/sheets'
 import { USERS } from '../auth/users'
 
@@ -69,6 +71,20 @@ export function AppProvider({ children }) {
   const [branchOverrides, setBranchOverrides] = useState(() => {
     try { return JSON.parse(localStorage.getItem(BRANCH_OVERRIDES_KEY) || '{}') } catch { return {} }
   })
+
+  const loadBranchConfig = useCallback(async () => {
+    try {
+      const config = await fetchBranchConfig()
+      if (config && Object.keys(config).length > 0) {
+        setBranchOverrides(config)
+        localStorage.setItem(BRANCH_OVERRIDES_KEY, JSON.stringify(config))
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    loadBranchConfig()
+  }, [loadBranchConfig])
   const [consults, setConsults] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -78,8 +94,7 @@ export function AppProvider({ children }) {
   const login = useCallback((id, password) => {
     let user = USERS.find(u => u.id === id)
     if (!user) {
-      const branchOvs = getBranchOverrides()
-      for (const [origId, ov] of Object.entries(branchOvs)) {
+      for (const [origId, ov] of Object.entries(branchOverrides)) {
         if (ov.loginId === id) { user = USERS.find(u => u.id === origId); break }
       }
     }
@@ -91,7 +106,7 @@ export function AppProvider({ children }) {
     localStorage.setItem(CREDS_KEY, JSON.stringify({ id: user.id, password }))
     localStorage.setItem(USER_KEY, JSON.stringify(user))
     setCurrentUser(user)
-  }, [])
+  }, [branchOverrides])
 
   const adminSetPassword = useCallback((userId, newPw) => {
     if (currentUser?.role !== 'admin') throw new Error('관리자만 변경할 수 있습니다')
@@ -103,8 +118,11 @@ export function AppProvider({ children }) {
     localStorage.setItem(PW_OVERRIDES_KEY, JSON.stringify(overrides))
   }, [currentUser])
 
-  const adminUpdateBranch = useCallback((branchId, { displayName, principalName, loginId, newPassword }) => {
+  const adminUpdateBranch = useCallback(async (branchId, { displayName, principalName, loginId, newPassword }) => {
     if (currentUser?.role !== 'admin') throw new Error('관리자만 변경할 수 있습니다')
+
+    if (newPassword && newPassword.length < 4) throw new Error('비밀번호는 4자 이상이어야 합니다')
+
     const updated = {
       ...branchOverrides,
       [branchId]: {
@@ -116,8 +134,17 @@ export function AppProvider({ children }) {
     }
     localStorage.setItem(BRANCH_OVERRIDES_KEY, JSON.stringify(updated))
     setBranchOverrides(updated)
+
+    const ov = updated[branchId] || {}
+    try {
+      await saveBranchConfig(branchId, {
+        displayName: ov.displayName || '',
+        principalName: ov.principalName || '',
+        loginId: ov.loginId || '',
+      })
+    } catch {}
+
     if (newPassword) {
-      if (newPassword.length < 4) throw new Error('비밀번호는 4자 이상이어야 합니다')
       const pwOvs = JSON.parse(localStorage.getItem(PW_OVERRIDES_KEY) || '{}')
       pwOvs[branchId] = newPassword
       localStorage.setItem(PW_OVERRIDES_KEY, JSON.stringify(pwOvs))
@@ -132,8 +159,7 @@ export function AppProvider({ children }) {
   const changePassword = useCallback((userId, currentPw, newPw) => {
     let user = USERS.find(u => u.id === userId)
     if (!user) {
-      const branchOvs = getBranchOverrides()
-      for (const [origId, ov] of Object.entries(branchOvs)) {
+      for (const [origId, ov] of Object.entries(branchOverrides)) {
         if (ov.loginId === userId) { user = USERS.find(u => u.id === origId); break }
       }
     }
@@ -157,7 +183,7 @@ export function AppProvider({ children }) {
         }
       }
     } catch {}
-  }, [])
+  }, [branchOverrides])
 
   const logout = useCallback(() => {
     localStorage.removeItem(CREDS_KEY)
