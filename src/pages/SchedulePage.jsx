@@ -1,23 +1,31 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import SearchInput from '../components/SearchInput'
 import dayjs from 'dayjs'
 
 export default function SchedulePage() {
   const { consults } = useApp()
   const navigate = useNavigate()
   const today = dayjs().format('YYYY-MM-DD')
+  const [search, setSearch] = useState('')
+
+  const matchSearch = useCallback((c) => {
+    if (!search.trim()) return true
+    const q = search.trim().toLowerCase()
+    return String(c.name || '').toLowerCase().includes(q) || String(c.phone || '').includes(q)
+  }, [search])
 
   const upcoming = useMemo(() =>
     consults
-      .filter(c => c.diagDate && c.diagDate >= today)
+      .filter(c => c.diagDate && c.diagDate >= today && matchSearch(c))
       .sort((a, b) => a.diagDate.localeCompare(b.diagDate)),
-    [consults, today]
+    [consults, today, matchSearch]
   )
 
   const past = useMemo(() =>
     consults
-      .filter(c => c.diagDate && c.diagDate < today)
+      .filter(c => c.diagDate && c.diagDate < today && matchSearch(c))
       .sort((a, b) => b.diagDate.localeCompare(a.diagDate))
       .slice(0, 10),
     [consults, today]
@@ -44,6 +52,7 @@ export default function SchedulePage() {
 
   return (
     <div style={{ padding: 16 }}>
+      <SearchInput value={search} onChange={setSearch} style={{ marginBottom: 12 }} />
       <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>진단 예약 일정</h2>
       <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>
         오늘: {dayjs().format('YYYY년 M월 D일')}

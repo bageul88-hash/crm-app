@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { OPTIONS } from '../api/sheets'
 import SmsModal from '../components/SmsModal'
+import SearchInput from '../components/SearchInput'
 import { saveContactMemo } from '../hooks/useContacts'
 import dayjs from 'dayjs'
 
@@ -173,6 +174,15 @@ export default function InputPage() {
   const [smsConsult, setSmsConsult] = useState(null)
   const [contactMsg, setContactMsg] = useState('')
   const [featFocused, setFeatFocused] = useState(false)
+  const [quickSearch, setQuickSearch] = useState('')
+
+  const quickResults = useMemo(() => {
+    if (!quickSearch.trim() || isEdit) return []
+    const q = quickSearch.trim().toLowerCase()
+    return consults
+      .filter(c => String(c.name || '').toLowerCase().includes(q) || String(c.phone || '').includes(q))
+      .slice(0, 5)
+  }, [quickSearch, consults, isEdit])
 
   const showLessonFields = shouldShowLessonFields(form)
 
@@ -369,6 +379,33 @@ export default function InputPage() {
 
   return (
     <div style={{ padding: 16, paddingBottom: featFocused ? 316 : 16 }}>
+      {!isEdit && (
+        <div style={{ marginBottom: 16 }}>
+          <SearchInput
+            value={quickSearch}
+            onChange={setQuickSearch}
+            placeholder="기존 상담 검색 (이름 또는 전화번호)"
+          />
+          {quickResults.length > 0 && (
+            <div style={{ marginTop: 4, borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', background: '#fff' }}>
+              {quickResults.map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => navigate(`/detail/${c.id}`)}
+                  style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text3)', marginLeft: 8 }}>{c.phone}</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text2)' }}>{c.category}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20 }}>
         {isEdit ? '상담 수정' : '신규 상담 등록'}
       </h2>

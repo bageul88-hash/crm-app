@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { checkSmsPermission, requestSmsPermission, readSmsHistory, openSmsSettings } from '../hooks/useSmsAttendance'
+import SearchInput from '../components/SearchInput'
 
 const TODAY     = new Date()
 const TODAY_STR = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
@@ -26,6 +27,7 @@ const td = (x={}) => ({ padding: '10px 12px', fontSize: 14, color: 'var(--text)'
 export default function AttendancePage() {
   const [records, setRecords]         = useState({})
   const [tab, setTab]                 = useState('attend')
+  const [search, setSearch]           = useState('')
   const [selYear, setSelYear]         = useState(CUR_YEAR)
   const [selMon, setSelMon]           = useState(CUR_MON)
   const [loadingToday, setLoadToday]  = useState(false)
@@ -127,7 +129,10 @@ export default function AttendancePage() {
   }, [tab, importAllSms])
 
   // 파생 데이터
-  const todayList = (records[TODAY_STR]||[]).map(toEntry)
+  const searchQ = search.trim().toLowerCase()
+  const matchName = (name) => !searchQ || String(name || '').toLowerCase().includes(searchQ)
+
+  const todayList = (records[TODAY_STR]||[]).map(toEntry).filter(e => matchName(e.name))
   const allDates  = Object.keys(records).sort().reverse()
   const MONTHS    = Array.from({length:12}, (_,i) => String(i+1).padStart(2,'0'))
 
@@ -141,7 +146,7 @@ export default function AttendancePage() {
   const grouped = filteredDates.map(d => ({
     dateStr: d,
     label: fmtDateLabel(d),
-    entries: (records[d]||[]).map(toEntry),
+    entries: (records[d]||[]).map(toEntry).filter(e => matchName(e.name)),
     isWknd: [0,6].includes(new Date(+d.slice(0,4), parseInt(d.slice(4,6))-1, parseInt(d.slice(6,8))).getDay())
   }))
   const monthTotal = grouped.reduce((s, g) => s + g.entries.length, 0)
@@ -157,6 +162,8 @@ export default function AttendancePage() {
 
   return (
     <div className="fade-in" style={{ padding: '16px 16px 32px' }}>
+
+      <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" style={{ marginBottom: 12 }} />
 
       {/* 파란 박스 */}
       <div style={{ background:'var(--accent)', borderRadius:'var(--radius)', padding:'14px 18px', marginBottom:14, color:'#fff', display:'flex', justifyContent:'space-between', alignItems:'center' }}>

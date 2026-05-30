@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { filterByTab } from '../api/sheets'
+import SearchInput from '../components/SearchInput'
 import dayjs from 'dayjs'
 
 const SMS_TABS = ['예약', '문의', '수업중', '미등록', '연결', '펑크', '크레임', '환불', '가맹', '전체']
@@ -263,6 +264,7 @@ export default function SMSPage() {
 
   const [activeTab, setActiveTab] = useState('전체')
   const [daysBefore, setDaysBefore] = useState(30)
+  const [search, setSearch] = useState('')
   const [checkedIds, setCheckedIds] = useState(new Set())
 
   const [selectedTargets, setSelectedTargets] = useState([])
@@ -286,8 +288,15 @@ export default function SMSPage() {
       })
     }
 
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter(c =>
+        String(c.name || '').toLowerCase().includes(q) || String(c.phone || '').includes(q)
+      )
+    }
+
     return [...list].sort((a, b) => b.id - a.id)
-  }, [consults, activeTab, cutoff, daysBefore])
+  }, [consults, activeTab, cutoff, daysBefore, search])
 
   // targets 변경 시 전체 체크로 초기화
   useEffect(() => {
@@ -358,6 +367,7 @@ export default function SMSPage() {
 
   return (
     <div style={{ padding: 16 }}>
+      <SearchInput value={search} onChange={setSearch} style={{ marginBottom: 12 }} />
       <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>
         문자 발송 대상
       </h2>
