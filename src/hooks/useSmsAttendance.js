@@ -14,31 +14,23 @@ export function useMmsReceived(onMmsReceived) {
   const stable = useCallback(onMmsReceived, [onMmsReceived])
   useEffect(() => {
     let handle
-    let cancelled = false
     SmsPlugin.addListener('mmsReceived', ({ phone }) => {
       console.log('[MMS] 이미지 수신:', phone)
       stable?.(phone)
-    }).then(h => {
-      if (cancelled) h.remove()
-      else handle = h
-    }).catch(() => {})
-    return () => { cancelled = true; handle?.remove() }
+    }).then(h => { handle = h }).catch(() => {})
+    return () => { handle?.remove() }
   }, [stable])
 }
 
 export function useSmsAttendance(onStudentArrival) {
   useEffect(() => {
     let handle
-    let cancelled = false
     SmsPlugin.addListener('smsAttendance', ({ studentName, time }) => {
       console.log('[SMS수신] 등원 감지:', studentName, time)
       onStudentArrival?.(studentName, time)
-    }).then(h => {
-      if (cancelled) h.remove()
-      else handle = h
-    }).catch(() => {})
+    }).then(h => { handle = h }).catch(() => {})
 
-    return () => { cancelled = true; handle?.remove() }
+    return () => { handle?.remove() }
   }, [onStudentArrival])
 }
 

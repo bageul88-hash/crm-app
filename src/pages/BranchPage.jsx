@@ -6,7 +6,7 @@ import { BRANCHES } from '../auth/users'
 import ConsultCard from '../components/ConsultCard'
 
 export default function BranchPage() {
-  const { allConsults, remove, adminUpdateBranch, branchOverrides, getEffectivePw, login, currentUser } = useApp()
+  const { allConsults, remove, adminUpdateBranch, branchOverrides, getEffectivePw, login, currentUser, cleanupConfigRows } = useApp()
   const navigate = useNavigate()
   const isAdmin = currentUser?.role === 'admin'
 
@@ -17,6 +17,7 @@ export default function BranchPage() {
   const [editTarget, setEditTarget] = useState(null)
   const [editForm, setEditForm] = useState({ displayName: '', principalName: '', loginId: '', newPassword: '' })
   const [editMsg, setEditMsg] = useState(null)
+  const [cleanupMsg, setCleanupMsg] = useState(null)
 
   // DB(allConsults)에서 실제 지사명 추출
   const dbBranchNames = useMemo(() => {
@@ -75,6 +76,18 @@ export default function BranchPage() {
     }
   }
 
+  const handleCleanup = async () => {
+    if (!window.confirm('DB에서 __config__ 설정 행을 모두 삭제하고 현재 설정으로 재저장합니다. 계속할까요?')) return
+    setCleanupMsg({ ok: null, text: '정리 중...' })
+    try {
+      const count = await cleanupConfigRows()
+      setCleanupMsg({ ok: true, text: `완료: ${count}개 삭제 후 재저장됨` })
+      setTimeout(() => setCleanupMsg(null), 5000)
+    } catch (e) {
+      setCleanupMsg({ ok: false, text: e.message })
+    }
+  }
+
   const handleLoginAsBranch = () => {
     try {
       const pw = getEffectivePw(editTarget.id)
@@ -122,9 +135,25 @@ export default function BranchPage() {
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, letterSpacing: '-0.04em' }}>
           지사 관리
         </h2>
-        <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: isAdmin ? 8 : 16 }}>
           조회할 지사를 선택하세요
         </p>
+
+        {isAdmin && (
+          <div style={{ marginBottom: 16 }}>
+            <button type="button" onClick={handleCleanup}
+              style={{ fontSize: 12, padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                background: '#f3f4f6', color: 'var(--text2)', cursor: 'pointer', fontWeight: 600 }}>
+              DB 설정 행 정리
+            </button>
+            {cleanupMsg && (
+              <span style={{ marginLeft: 10, fontSize: 12, fontWeight: 600,
+                color: cleanupMsg.ok === true ? '#15803d' : cleanupMsg.ok === false ? 'var(--red)' : 'var(--text2)' }}>
+                {cleanupMsg.text}
+              </span>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {BRANCHES.map(b => {

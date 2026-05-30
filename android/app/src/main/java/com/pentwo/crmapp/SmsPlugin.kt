@@ -5,9 +5,15 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.provider.Telephony
+import androidx.core.content.ContextCompat
 import android.util.Log
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
@@ -32,9 +38,13 @@ import java.util.Locale
 class SmsPlugin : Plugin() {
 
     private var smsReceiver: BroadcastReceiver? = null
+    private var mmsObserver: ContentObserver? = null
+    private var lastMmsId: String? = null
 
     override fun load() {
         registerSmsReceiver()
+        initLastMmsId()
+        registerMmsObserver()
     }
 
     @PluginMethod
@@ -44,7 +54,9 @@ class SmsPlugin : Plugin() {
 
     @PluginMethod
     fun checkSmsPermission(call: PluginCall) {
-        val granted = getPermissionState("readSms") == PermissionState.GRANTED
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.READ_SMS
+        ) == PackageManager.PERMISSION_GRANTED
         Log.d("CRM_SMS", "checkSmsPermission: $granted")
         val ret = JSObject()
         ret.put("granted", granted)
@@ -54,7 +66,10 @@ class SmsPlugin : Plugin() {
     @PluginMethod
     fun requestSmsPermission(call: PluginCall) {
         Log.d("CRM_SMS", "requestSmsPermission 호출")
-        if (getPermissionState("readSms") == PermissionState.GRANTED) {
+        val alreadyGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.READ_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (alreadyGranted) {
             val ret = JSObject()
             ret.put("granted", true)
             call.resolve(ret)
@@ -70,6 +85,16 @@ class SmsPlugin : Plugin() {
         val ret = JSObject()
         ret.put("granted", granted)
         call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun openAppSettings(call: PluginCall) {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", activity.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        activity.startActivity(intent)
+        call.resolve()
     }
 
     @PluginMethod
@@ -133,6 +158,128 @@ class SmsPlugin : Plugin() {
         call.resolve(ret)
     }
 
+    @PluginMethod
+    fun readMmsHistory(call: PluginCall) {
+        val limit = call.getInt("limit", 2000) ?: 2000
+        val results = JSArray()
+        try {
+            val cursor = context.contentResolver.query(
+                Uri.parse("content://mms/inbox"),
+                arrayOf("_id", "date"),
+                null, null,
+                "date DESC"
+            )
+            cursor?.use { mc ->
+                val idIdx   = mc.getColumnIndex("_id")
+                val dateIdx = mc.getColumnIndex("date")
+                while (mc.moveToNext() && results.length() < limit) {
+                    val mmsId       = if (idIdx   >= 0) mc.getString(idIdx) ?: "" else ""
+                    val dateSec     = if (dateIdx >= 0) mc.getLong(dateIdx)   else 0L
+                    if (mmsId.isEmpty()) continue
+                    if (!hasImagePart(mmsId)) continue
+                    val phone = getMmsSender(mmsId)
+                    if (phone.isEmpty()) continue
+                    val item = JSObject()
+                    item.put("phone", phone)
+                    item.put("date", dateSec * 1000L) // seconds → milliseconds
+                    results.put(item)
+                }
+            }
+            Log.d("CRM_SMS", "MMS 이미지 발신자: ${results.length()}건")
+        } catch (e: Exception) {
+            Log.e("CRM_SMS", "MMS 읽기 오류", e)
+        }
+        val ret = JSObject()
+        ret.put("items", results)
+        call.resolve(ret)
+    }
+
+    private fun hasImagePart(mmsId: String): Boolean {
+        return try {
+            val cursor = context.contentResolver.query(
+                Uri.parse("content://mms/part"),
+                arrayOf("ct"),
+                "mid = ?",
+                arrayOf(mmsId),
+                null
+            )
+            cursor?.use {
+                val ctIdx = it.getColumnIndex("ct")
+                while (it.moveToNext()) {
+                    val ct = if (ctIdx >= 0) it.getString(ctIdx) ?: "" else ""
+                    if (ct.startsWith("image/")) return true
+                }
+            }
+            false
+        } catch (_: Exception) { false }
+    }
+
+    private fun getMmsSender(mmsId: String): String {
+        return try {
+            val cursor = context.contentResolver.query(
+                Uri.parse("content://mms/$mmsId/addr"),
+                arrayOf("address", "type"),
+                "type = 137", // PduHeaders.FROM
+                null, null
+            )
+            cursor?.use {
+                val addrIdx = it.getColumnIndex("address")
+                if (it.moveToFirst() && addrIdx >= 0) {
+                    val addr = it.getString(addrIdx) ?: ""
+                    if (addr != "insert-address-token") addr else ""
+                } else ""
+            } ?: ""
+        } catch (_: Exception) { "" }
+    }
+
+    private fun initLastMmsId() {
+        try {
+            val cursor = context.contentResolver.query(
+                Uri.parse("content://mms/inbox"),
+                arrayOf("_id"), null, null, "_id DESC"
+            )
+            cursor?.use { if (it.moveToFirst()) lastMmsId = it.getString(0) }
+        } catch (e: Exception) {
+            Log.w("CRM_SMS", "MMS 초기화 오류: ${e.message}")
+        }
+    }
+
+    private fun registerMmsObserver() {
+        val handler = Handler(Looper.getMainLooper())
+        mmsObserver = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) { checkNewMms() }
+        }
+        context.contentResolver.registerContentObserver(
+            Uri.parse("content://mms"), true, mmsObserver!!
+        )
+        Log.d("CRM_SMS", "MMS 수신 감시 등록 완료")
+    }
+
+    private fun checkNewMms() {
+        try {
+            val cursor = context.contentResolver.query(
+                Uri.parse("content://mms/inbox"),
+                arrayOf("_id"), null, null, "_id DESC"
+            )
+            cursor?.use {
+                val idIdx = it.getColumnIndex("_id")
+                if (!it.moveToFirst() || idIdx < 0) return
+                val newId = it.getString(idIdx)
+                if (newId == lastMmsId) return
+                lastMmsId = newId
+                if (!hasImagePart(newId)) return
+                val phone = getMmsSender(newId)
+                if (phone.isEmpty()) return
+                Log.d("CRM_SMS", "새 MMS 이미지 수신: $phone")
+                val data = JSObject()
+                data.put("phone", phone)
+                notifyListeners("mmsReceived", data)
+            }
+        } catch (e: Exception) {
+            Log.e("CRM_SMS", "MMS 체크 오류: ${e.message}")
+        }
+    }
+
     private fun registerSmsReceiver() {
         smsReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
@@ -181,10 +328,10 @@ class SmsPlugin : Plugin() {
     }
 
     override fun handleOnDestroy() {
-        try {
-            smsReceiver?.let { context.unregisterReceiver(it) }
-        } catch (_: Exception) {}
+        try { smsReceiver?.let { context.unregisterReceiver(it) } } catch (_: Exception) {}
         smsReceiver = null
-        Log.d("CRM_SMS", "SMS 수신 리스너 해제")
+        mmsObserver?.let { context.contentResolver.unregisterContentObserver(it) }
+        mmsObserver = null
+        Log.d("CRM_SMS", "SMS/MMS 리스너 해제")
     }
 }

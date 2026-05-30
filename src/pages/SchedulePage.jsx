@@ -93,14 +93,22 @@ export default function SchedulePage() {
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                    <span className={`badge badge-${c.category}`}>{c.category || '미분류'}</span>
-                    {c.diagResult && (
+                  <div style={{ textAlign: 'right' }}>
+                    {c.diagResult ? (
                       <span style={{
-                        fontSize: 12,
-                        color: c.diagResult === '예약확정' ? 'var(--green)'
-                             : c.diagResult === '취소' ? 'var(--red)' : 'var(--text3)',
+                        fontSize: 12, fontWeight: 700, padding: '2px 8px',
+                        borderRadius: 10, border: '1px solid',
+                        borderColor: {
+                          미등록: '#9CA3AF', 연결: '#3B82F6', 펑크: '#EF4444',
+                          환불: '#F97316', 가맹: '#8B5CF6', 등록: '#16a34a',
+                        }[c.diagResult] || '#d1d5db',
+                        color: {
+                          미등록: '#9CA3AF', 연결: '#3B82F6', 펑크: '#EF4444',
+                          환불: '#F97316', 가맹: '#8B5CF6', 등록: '#16a34a',
+                        }[c.diagResult] || 'var(--text3)',
                       }}>{c.diagResult}</span>
+                    ) : (
+                      <span className={`badge badge-${c.category}`}>{c.category || '미분류'}</span>
                     )}
                   </div>
                 </div>
@@ -124,22 +132,38 @@ export default function SchedulePage() {
             letterSpacing: '0.08em', textTransform: 'uppercase',
             margin: '24px 0 12px',
           }}>지난 예약</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0.6 }}>
-            {past.map(c => (
-              <div key={c.id} className="card" style={{ cursor: 'pointer' }}
-                onClick={() => navigate(`/detail/${c.id}`)}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontWeight: 500 }}>{c.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-                      {c.diagDate}{c.diagDay ? ` (${c.diagDay})` : ''}
-                      {c.diagTime ? ` ${c.diagTime}` : ''}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {past.map(c => {
+              const hasResult = Boolean(c.diagResult)
+              // 진단결과 미기재 → 빨간 '미확인' (수동 처리 필요 안내)
+              const diagResult = c.diagResult || '미확인'
+              const resultColor = hasResult
+                ? ({ 미등록: '#9CA3AF', 연결: '#3B82F6', 펑크: '#EF4444', 환불: '#F97316', 가맹: '#8B5CF6' }[c.diagResult] || '#9CA3AF')
+                : '#EF4444'
+              return (
+                <div key={c.id} className="card"
+                  style={{ cursor: 'pointer', opacity: hasResult ? 0.6 : 1 }}
+                  onClick={() => navigate(`/detail/${c.id}`)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+                        {c.name}
+                        <span style={{
+                          fontSize: 11, padding: '1px 6px', borderRadius: 10,
+                          border: `1px solid ${resultColor}`,
+                          color: resultColor, fontWeight: 700, lineHeight: 1.5,
+                        }}>{diagResult}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                        {c.diagDate}{c.diagDay ? ` (${c.diagDay})` : ''}
+                        {c.diagTime ? ` ${c.diagTime}` : ''}
+                      </div>
                     </div>
+                    <span style={{ fontSize: 11, color: 'var(--text3)' }}>{c.category}</span>
                   </div>
-                  <span className={`badge badge-${c.category}`}>{c.category || '미분류'}</span>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </>
       )}

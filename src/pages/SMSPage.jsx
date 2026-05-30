@@ -2,9 +2,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { filterByTab } from '../api/sheets'
 import dayjs from 'dayjs'
-import { sendSmsAligo, ALIGO_CONFIGURED } from '../api/aligo'
 
-const SMS_TABS = ['예약', '문의', '수업중', '미등록', '연결', '펑크', '환불', '가맹', '전체']
+const SMS_TABS = ['예약', '문의', '수업중', '미등록', '연결', '펑크', '크레임', '환불', '가맹', '전체']
 
 const RESULT_COLOR = {
   등록: 'var(--green)',
@@ -270,9 +269,6 @@ export default function SMSPage() {
   const [templateKey, setTemplateKey] = useState('generalReserve')
   const [customText, setCustomText] = useState('')
   const [tabsExpanded, setTabsExpanded] = useState(false)
-  const [sendMode, setSendMode] = useState('app')  // 'app' | 'aligo'
-  const [aligoStatus, setAligoStatus] = useState(null)  // null | 'sending' | 'ok' | 'err'
-  const [aligoMsg, setAligoMsg] = useState('')
 
   const cutoff = useMemo(
     () => dayjs().subtract(daysBefore, 'day').format('YYYYMMDD'),
@@ -346,22 +342,9 @@ export default function SMSPage() {
     setCustomText('')
   }
 
-  const sendSms = async () => {
+  const sendSms = () => {
     if (targetPhones.length === 0) {
       alert('전화번호가 없습니다.')
-      return
-    }
-    if (sendMode === 'aligo') {
-      setAligoStatus('sending')
-      setAligoMsg('')
-      try {
-        const res = await sendSmsAligo({ receivers: targetPhones, msg: previewText })
-        setAligoStatus('ok')
-        setAligoMsg(`발송 완료 (${res.sent}/${res.total}건)`)
-      } catch (e) {
-        setAligoStatus('err')
-        setAligoMsg(e.message)
-      }
       return
     }
     const phones = targetPhones.join(',')
@@ -626,27 +609,6 @@ export default function SMSPage() {
             ))}
           </div>
 
-          {/* 발송 방식 선택 */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-            {[
-              { key: 'app',   label: '📱 문자앱' },
-              { key: 'aligo', label: '🚀 알리고 API', disabled: !ALIGO_CONFIGURED },
-            ].map(({ key, label, disabled }) => (
-              <button key={key} onClick={() => { if (!disabled) { setSendMode(key); setAligoStatus(null) } }}
-                disabled={disabled}
-                style={{
-                  flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid',
-                  borderColor: sendMode === key ? 'var(--accent)' : 'var(--border)',
-                  background: sendMode === key ? 'rgba(79,126,248,0.12)' : 'transparent',
-                  color: disabled ? 'var(--text3)' : (sendMode === key ? 'var(--accent)' : 'var(--text2)'),
-                  fontSize: 13, fontWeight: sendMode === key ? 700 : 400,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                }}>
-                {label}
-              </button>
-            ))}
-          </div>
-
           <label className="label">문자 내용</label>
           <textarea
             className="input"
@@ -659,26 +621,9 @@ export default function SMSPage() {
             수신번호: {targetPhones.join(', ')}
           </div>
 
-          {aligoStatus === 'err' && (
-            <div style={{ marginTop: 10, padding: '8px 12px', background: '#fee2e2', borderRadius: 7, fontSize: 12, color: '#dc2626' }}>
-              ❌ {aligoMsg}
-            </div>
-          )}
-          {aligoStatus === 'ok' && (
-            <div style={{ marginTop: 10, padding: '8px 12px', background: '#dcfce7', borderRadius: 7, fontSize: 12, color: '#16a34a' }}>
-              ✅ {aligoMsg}
-            </div>
-          )}
-
           <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
             <button className="btn btn-ghost" style={{ flex: 1 }} onClick={copyText}>내용 복사</button>
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={sendSms}
-              disabled={aligoStatus === 'sending' || aligoStatus === 'ok'}>
-              {aligoStatus === 'sending' ? '⏳ 발송 중...'
-                : aligoStatus === 'ok' ? '✅ 발송 완료'
-                : sendMode === 'aligo' ? '🚀 알리고로 발송'
-                : '📩 문자앱으로 보내기'}
-            </button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={sendSms}>📩 문자 보내기</button>
           </div>
         </div>
       )}

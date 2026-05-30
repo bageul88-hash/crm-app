@@ -241,8 +241,8 @@ export async function fetchConsults() {
   const consults = rows
     .map((row, i) => ({ id: i + 2, ...rowToObject(row) }))
     .filter(item => {
-      if (item.name?.startsWith('__config__')) {
-        const branchId = item.branchId || item.name.slice('__config__'.length)
+      if (String(item.name ?? '').startsWith('__config__')) {
+        const branchId = item.branchId || String(item.name).slice('__config__'.length)
         if (branchId) {
           try {
             const cfg = JSON.parse(item.feature || '{}')

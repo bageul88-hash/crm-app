@@ -223,8 +223,13 @@ export default function InputPage() {
   }, [location.search])
 
   useEffect(() => {
-    if (location.state?.phone) {
-      setForm(prev => ({ ...prev, phone: cleanPhone(location.state.phone) }))
+    const s = location.state || {}
+    if (s.phone || s.hasPhoto) {
+      setForm(prev => ({
+        ...prev,
+        ...(s.phone && { phone: cleanPhone(s.phone) }),
+        ...(s.hasPhoto && { hasPhoto: s.hasPhoto }),
+      }))
     }
   }, [location.state])
 

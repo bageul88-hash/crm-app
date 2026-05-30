@@ -260,11 +260,7 @@ export function AppProvider({ children }) {
     })
 
     addConsult(payload)
-      .then(() => {
-        showSaveSuccess('✅ 서버 저장 완료')
-        // 신규 추가 시 임시 음수 id를 실제 DB 행번호로 교체하기 위해 재동기화
-        silentSync()
-      })
+      .then(() => showSaveSuccess('✅ 서버 저장 완료'))
       .catch(() => {
         setConsults(prev => {
           const rolled = prev.filter(c => c.id !== tempId)
@@ -273,7 +269,7 @@ export function AppProvider({ children }) {
         })
         showSaveError('저장에 실패했습니다. 다시 시도해주세요.')
       })
-  }, [currentUser, silentSync, showSaveSuccess, showSaveError])
+  }, [currentUser, silentSync, showSaveError])
 
   // 낙관적 수정: UI 즉시 반영 → 백그라운드 API → 성공 시 캐시 동기화, 실패 시 롤백
   const update = useCallback(async data => {

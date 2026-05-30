@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { checkSmsPermission, requestSmsPermission, readSmsHistory } from '../hooks/useSmsAttendance'
+import { checkSmsPermission, requestSmsPermission, readSmsHistory, openSmsSettings } from '../hooks/useSmsAttendance'
 
 const TODAY     = new Date()
 const TODAY_STR = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
@@ -113,11 +113,6 @@ export default function AttendancePage() {
     } finally { lockRef.current = false; setLoadingAll(false) }
   }, [])
 
-  // 앱 첫 실행 시 자동 로드
-  useEffect(() => {
-    checkSmsPermission().then(ok => { if (ok) loadTodaySms() })
-  }, [])
-
   // 탭 진입 시 자동 로드
   useEffect(() => {
     if (tab === 'attend') loadTodaySms()
@@ -188,8 +183,21 @@ export default function AttendancePage() {
       </div>
 
       {permDenied && (
-        <div style={{ fontSize:12, color:'var(--red)', marginBottom:12, padding:'10px 14px', background:'#fee2e2', borderRadius:9 }}>
-          SMS 권한이 거부됐습니다. 앱 설정 → 권한에서 SMS를 허용해주세요.
+        <div style={{ marginBottom:12, padding:'12px 14px', background:'#fee2e2', borderRadius:9 }}>
+          <div style={{ fontSize:12, color:'var(--red)', fontWeight:600, marginBottom:8 }}>
+            SMS 권한이 거부됐습니다. 앱 설정 → 권한에서 SMS를 허용해주세요.
+          </div>
+          <button
+            type="button"
+            onClick={openSmsSettings}
+            style={{
+              padding:'7px 14px', borderRadius:7, border:'none',
+              background:'var(--red)', color:'#fff',
+              fontSize:12, fontWeight:700, cursor:'pointer',
+            }}
+          >
+            앱 설정 열기
+          </button>
         </div>
       )}
 

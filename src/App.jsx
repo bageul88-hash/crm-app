@@ -3,7 +3,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { useApp } from './context/AppContext'
 import { App as CapApp } from '@capacitor/app'
 
-const TELEGRAM_DAYS = ['일','월','화','수','목','금','토']
+const TELEGRAM_TOKEN  = import.meta.env.VITE_TELEGRAM_TOKEN
+const TELEGRAM_CHAT   = import.meta.env.VITE_TELEGRAM_CHAT_ID
+const TELEGRAM_DAYS   = ['일','월','화','수','목','금','토']
 
 function fmtKrTime(timeStr) {
   if (!timeStr) {
@@ -15,7 +17,6 @@ function fmtKrTime(timeStr) {
   return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(m).padStart(2,'0')}`
 }
 
-// 텔레그램 발송은 서버(/api/telegram-notify)를 통해 프록시 — 토큰은 Render 환경변수에 보관
 function sendTelegramAttendance(studentName, attendDate, attendTime, totalCount) {
   const [y, mo, d] = attendDate.split('-').map(Number)
   const dayName = TELEGRAM_DAYS[new Date(y, mo - 1, d).getDay()]
@@ -25,10 +26,10 @@ function sendTelegramAttendance(studentName, attendDate, attendTime, totalCount)
     `📅 ${attendDate} (${dayName}요일)\n` +
     `🕐 ${attendTime}\n` +
     `📊 총 출석 ${totalCount}회`
-  fetch('/api/telegram-notify', {
+  fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ chat_id: TELEGRAM_CHAT, text }),
   }).catch(() => {})
 }
 
@@ -65,14 +66,10 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return
     let handle
-    let cancelled = false
     CapApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) silentSync()
-    }).then(h => {
-      if (cancelled) h.remove()
-      else handle = h
-    }).catch(() => {})
-    return () => { cancelled = true; handle?.remove() }
+    }).then(h => { handle = h }).catch(() => {})
+    return () => { handle?.remove() }
   }, [currentUser, silentSync])
 
   const handleSmsAttendance = useCallback((studentName, time) => {
@@ -199,27 +196,56 @@ export default function App() {
       <CallBanner />
       <BottomNav />
 
-      {(() => {
-        // 토스트를 아래에서 위로 60px 간격으로 쌓기
-        const toasts = [
-          smsToast && { key: 'sms', bg: '#16a34a', node: <><span>✅</span><span>{smsToast} 학생 등원 자동 체크</span></>, flex: true },
-          mmsToast && { key: 'mms', bg: '#0ea5e9', node: mmsToast },
-          saveSuccess && { key: 'success', bg: '#16a34a', node: saveSuccess },
-          saveError && { key: 'error', bg: '#dc2626', node: saveError, wide: true },
-        ].filter(Boolean)
-        return toasts.map((t, i) => (
-          <div key={t.key} style={{
-            position: 'fixed', bottom: 80 + i * 60, left: '50%', transform: 'translateX(-50%)',
-            background: t.bg, color: '#fff', borderRadius: 12,
-            padding: '12px 20px', fontSize: 14, fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
-            ...(t.flex ? { display: 'flex', alignItems: 'center', gap: 8 } : {}),
-            ...(t.wide ? { maxWidth: '90vw', textAlign: 'center' } : { whiteSpace: 'nowrap' }),
-          }}>
-            {t.node}
-          </div>
-        ))
-      })()}
+      {mmsToast && (
+        <div style={{
+          position: 'fixed', bottom: smsToast ? 140 : 80, left: '50%', transform: 'translateX(-50%)',
+          background: '#0ea5e9', color: '#fff', borderRadius: 12,
+          padding: '12px 20px', fontSize: 14, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
+          whiteSpace: 'nowrap',
+        }}>
+          {mmsToast}
+        </div>
+      )}
+
+      {smsToast && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: '#16a34a', color: '#fff', borderRadius: 12,
+          padding: '12px 20px', fontSize: 14, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', gap: 8,
+          whiteSpace: 'nowrap',
+        }}>
+          <span>✅</span>
+          <span>{smsToast} 학생 등원 자동 체크</span>
+        </div>
+      )}
+
+      {saveSuccess && (
+        <div style={{
+          position: 'fixed', bottom: smsToast ? 140 : 80, left: '50%', transform: 'translateX(-50%)',
+          background: '#16a34a', color: '#fff', borderRadius: 12,
+          padding: '12px 20px', fontSize: 14, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
+          whiteSpace: 'nowrap',
+        }}>
+          {saveSuccess}
+        </div>
+      )}
+
+      {saveError && (
+        <div style={{
+          position: 'fixed', bottom: smsToast ? 140 : 80, left: '50%', transform: 'translateX(-50%)',
+          background: '#dc2626', color: '#fff', borderRadius: 12,
+          padding: '12px 20px', fontSize: 14, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
+          whiteSpace: 'nowrap',
+          maxWidth: '90vw', textAlign: 'center',
+        }}>
+          {saveError}
+        </div>
+      )}
 
       {update && (
         <div style={{
