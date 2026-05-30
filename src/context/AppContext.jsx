@@ -260,7 +260,10 @@ export function AppProvider({ children }) {
     })
 
     addConsult(payload)
-      .then(() => showSaveSuccess('✅ 서버 저장 완료'))
+      .then(() => {
+        showSaveSuccess('✅ 서버 저장 완료')
+        silentSync()
+      })
       .catch(() => {
         setConsults(prev => {
           const rolled = prev.filter(c => c.id !== tempId)
@@ -269,7 +272,7 @@ export function AppProvider({ children }) {
         })
         showSaveError('저장에 실패했습니다. 다시 시도해주세요.')
       })
-  }, [currentUser, silentSync, showSaveError])
+  }, [currentUser, silentSync, showSaveSuccess, showSaveError])
 
   // 낙관적 수정: UI 즉시 반영 → 백그라운드 API → 성공 시 캐시 동기화, 실패 시 롤백
   const update = useCallback(async data => {
