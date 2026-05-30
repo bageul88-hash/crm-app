@@ -205,7 +205,7 @@ export default function AttendancePage() {
       {tab === 'attend' && (
         <div>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-            <span style={{ fontSize:13, fontWeight:700, color:'var(--text2)' }}>오늘 등원 현황</span>
+            <span style={{ fontSize:13, fontWeight:700, color:'var(--text2)' }}>오늘 등원 {todayList.length}등원</span>
             <button type="button" onClick={loadTodaySms} disabled={loadingToday}
               style={{ fontSize:18, background:'none', border:'none', color:'var(--text3)', cursor:'pointer', padding:'0 4px' }}>
               {loadingToday ? '⏳' : '🔄'}
