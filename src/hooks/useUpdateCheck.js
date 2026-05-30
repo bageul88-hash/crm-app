@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
 
-const CURRENT_VERSION = '1.0.0'
-const VERSION_URL = 'https://crm-app.vercel.app/version.json'
+const CURRENT_VERSION = '26.05.31'
+const GITHUB_API = 'https://api.github.com/repos/bageul88-hash/crm-app/releases/latest'
 const DISMISSED_KEY = 'crm_dismissed_version'
 
+function parseVersion(tag) {
+  return String(tag || '').replace(/^v/, '')
+}
+
 function isNewer(remote, local) {
-  const r = remote.split('.').map(Number)
-  const l = local.split('.').map(Number)
+  const r = parseVersion(remote).split('.').map(Number)
+  const l = parseVersion(local).split('.').map(Number)
   for (let i = 0; i < 3; i++) {
     if ((r[i] || 0) > (l[i] || 0)) return true
     if ((r[i] || 0) < (l[i] || 0)) return false
@@ -20,14 +24,19 @@ export function useUpdateCheck() {
   useEffect(() => {
     const dismissed = localStorage.getItem(DISMISSED_KEY)
 
-    fetch(`${VERSION_URL}?t=${Date.now()}`)
+    fetch(`${GITHUB_API}?t=${Date.now()}`)
       .then(r => r.json())
       .then(data => {
-        if (data?.version && isNewer(data.version, CURRENT_VERSION)) {
-          if (dismissed !== data.version) {
-            setUpdate(data)
-          }
-        }
+        const version = parseVersion(data?.tag_name)
+        if (!version || !isNewer(version, CURRENT_VERSION)) return
+        if (dismissed === version) return
+
+        const apkAsset = (data.assets || []).find(a => a.name?.endsWith('.apk'))
+        setUpdate({
+          version,
+          apkUrl: apkAsset?.browser_download_url || '',
+          notes: data.body || '',
+        })
       })
       .catch(() => {})
   }, [])
