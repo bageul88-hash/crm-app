@@ -1,6 +1,6 @@
 // ✅ Apps Script 배포 URL
 export const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbzEqb1D0byiP1ctmKSq2dV9c-CZCerJkL3LyBsV-fSiB1yvSj_vCQLTIsHb3O3Z5rHw/exec'
+  'https://script.google.com/macros/s/AKfycbxNjBhQIGO3d-Q7aLnjyL3wi6GjXNLmAWeHCoKILd_McfT81W9XHCL5rnTL7hJ-nYtx/exec'
   
 
 // 실제 시트 열 순서
@@ -30,7 +30,7 @@ export const FIELD_MAP = {
 
 export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '핑크', '환불', '미등록', '연결', '가맹']
 
-const DIAG_ONLY_TABS = ['펑크', '환불', '미등록', '연결', '가맹']
+const DIAG_ONLY_TABS = ['펑크', '환불', '미등록', '연결', '가맹', '크레임']
 
 export function filterByTab(list, tab) {
   if (!Array.isArray(list)) return []
@@ -38,18 +38,19 @@ export function filterByTab(list, tab) {
   if (tab === '수업중') return list.filter(c => (c.category === '수업중' || c.diagResult === '등록') && c.category !== '수업종료')
   if (tab === '펑크')   return list.filter(c => c.diagResult === '펑크')
   if (tab === '환불')   return list.filter(c => c.diagResult === '환불')
+  if (tab === '크레임')  return list.filter(c => c.diagResult === '크레임' || c.category === '크레임')
   if (tab === '수업종료') return list.filter(c => c.category === '수업종료')
   if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
   if (tab === '연결')   return list.filter(c => c.diagResult === '연결')
   if (tab === '가맹')   return list.filter(c => c.diagResult === '가맹' || c.category === '가맹')
   if (tab === '수업자료') return list.filter(c => c.hasPhoto === '유')
   if (tab === '예약')   return list.filter(c => c.category === '예약' && !DIAG_ONLY_TABS.includes(c.diagResult))
-  if (tab === '문의')   return list.filter(c => c.category === '문의' && !['연결', '미등록', '가맹'].includes(c.diagResult))
+  if (tab === '문의')   return list.filter(c => c.category === '문의' && !['연결', '미등록', '가맹', '크레임'].includes(c.diagResult))
   return list.filter(c => c.category === tab)
 }
 
 export const OPTIONS = {
-  category: ['예약', '문의', '수업중', '수업종료'],
+  category: ['문의', '예약', '수업중', '수업종료'],
   age: Array.from({ length: 75 }, (_, i) => `${i + 6}세`),
   gender: ['남', '여'],
   diagTime: [
@@ -68,7 +69,7 @@ export const OPTIONS = {
     '오후 8:00', '오후 8:30',
     '오후 9:00',
   ],
-  diagResult: ['등록', '미등록', '연결', '펑크', '환불', '가맹'],
+  diagResult: ['미등록', '등록', '연결', '펑크', '크레임', '환불', '가맹'],
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
 }
 
@@ -105,23 +106,31 @@ function normalizeDiagResult(value) {
 function normalizeDateValue(value) {
   if (!value) return ''
 
-  const str = String(value).trim()
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    return str
+  // Date 객체 직접 처리 — toISOString() UTC 변환으로 인한 날짜/연도 왜곡 방지
+  if (value instanceof Date) {
+    const y = value.getFullYear()
+    const m = String(value.getMonth() + 1).padStart(2, '0')
+    const d = String(value.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
   }
 
-  if (str.includes('T')) {
+  const str = String(value).trim()
+
+  // 이미 정규 형식
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
+
+  // ISO 8601 (UTC 직렬화) — 타임존 오프셋으로 인한 날짜 편차 없이 로컬 날짜 추출
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
     return str.slice(0, 10)
   }
 
+  // 숫자만 추출해 재조합
   const clean = str.replace(/[^0-9]/g, '')
-
   if (clean.length === 8) {
     return `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`
   }
 
-  return str.slice(0, 10)
+  return ''
 }
 
 function normalizeTimeValue(value) {
@@ -228,10 +237,26 @@ export async function fetchConsults() {
   const json = await getFromSheet()
   const rows = json.data || []
 
-  return rows.map((row, i) => ({
-    id: i + 2,
-    ...rowToObject(row),
-  }))
+  const branchConfig = {}
+  const consults = rows
+    .map((row, i) => ({ id: i + 2, ...rowToObject(row) }))
+    .filter(item => {
+      if (item.name?.startsWith('__config__')) {
+        const branchId = item.branchId || item.name.slice('__config__'.length)
+        if (branchId) {
+          try {
+            const cfg = JSON.parse(item.feature || '{}')
+            if (cfg && (cfg.displayName || cfg.principalName || cfg.loginId)) {
+              branchConfig[branchId] = cfg
+            }
+          } catch {}
+        }
+        return false
+      }
+      return true
+    })
+
+  return { consults, branchConfig }
 }
 
 export async function addConsult(data) {
@@ -264,25 +289,32 @@ export async function deleteConsult(id) {
   )
 }
 
-export async function fetchBranchConfig() {
-  try {
-    const res = await fetch(`${APPS_SCRIPT_URL}?action=getBranchConfig`)
-    if (!res.ok) return {}
-    const json = await res.json()
-    return json.config || {}
-  } catch {
-    return {}
+export async function deleteAllConfigRows() {
+  const json = await getFromSheet()
+  const rows = json.data || []
+  const configIds = rows
+    .map((row, i) => ({ id: i + 2, name: String(row[FIELD_MAP.name] ?? '') }))
+    .filter(r => r.name.startsWith('__config__'))
+    .map(r => r.id)
+  for (const id of configIds) {
+    await deleteConsult(id)
   }
+  return configIds.length
 }
 
 export async function saveBranchConfig(branchId, { displayName, principalName, loginId }) {
   return postToSheet(
     {
-      action: 'setBranchConfig',
+      action: 'add',
+      category: '문의',
       branchId,
-      displayName: displayName ?? '',
-      principalName: principalName ?? '',
-      loginId: loginId ?? '',
+      branchName: '',
+      name: `__config__${branchId}`,   // name prefix로 config 행 식별
+      feature: JSON.stringify({
+        displayName: displayName ?? '',
+        principalName: principalName ?? '',
+        loginId: loginId ?? '',
+      }),
     },
     '지사 정보 저장에 실패했습니다'
   )

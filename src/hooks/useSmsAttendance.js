@@ -1,19 +1,44 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { registerPlugin } from '@capacitor/core'
 
-// isNativePlatform() 체크 제거 — 브릿지 초기화 타이밍 이슈 방지
-// 플러그인 호출 실패 시 catch에서 빈값 반환
 const SmsPlugin = registerPlugin('SmsPlugin')
+
+export function normalizeMmsPhone(raw) {
+  const cleaned = String(raw || '').replace(/[^0-9]/g, '')
+  if (cleaned.startsWith('82') && cleaned.length === 12) return '0' + cleaned.slice(2)
+  if (cleaned.length === 10 && cleaned[0] !== '0') return '0' + cleaned
+  return cleaned
+}
+
+export function useMmsReceived(onMmsReceived) {
+  const stable = useCallback(onMmsReceived, [onMmsReceived])
+  useEffect(() => {
+    let handle
+    let cancelled = false
+    SmsPlugin.addListener('mmsReceived', ({ phone }) => {
+      console.log('[MMS] 이미지 수신:', phone)
+      stable?.(phone)
+    }).then(h => {
+      if (cancelled) h.remove()
+      else handle = h
+    }).catch(() => {})
+    return () => { cancelled = true; handle?.remove() }
+  }, [stable])
+}
 
 export function useSmsAttendance(onStudentArrival) {
   useEffect(() => {
     let handle
+    let cancelled = false
     SmsPlugin.addListener('smsAttendance', ({ studentName, time }) => {
       console.log('[SMS수신] 등원 감지:', studentName, time)
       onStudentArrival?.(studentName, time)
-    }).then(h => { handle = h }).catch(() => {})
+    }).then(h => {
+      if (cancelled) h.remove()
+      else handle = h
+    }).catch(() => {})
 
-    return () => { handle?.remove() }
+    return () => { cancelled = true; handle?.remove() }
   }, [onStudentArrival])
 }
 
@@ -36,6 +61,26 @@ export async function requestSmsPermission() {
   } catch (e) {
     console.warn('[SMS] requestSmsPermission 실패:', e?.message)
     return false
+  }
+}
+
+export async function openSmsSettings() {
+  try {
+    await SmsPlugin.openAppSettings()
+  } catch (e) {
+    console.warn('[SMS] openAppSettings 실패:', e?.message)
+  }
+}
+
+export async function readMmsHistory(limit = 2000) {
+  try {
+    const result = await SmsPlugin.readMmsHistory({ limit })
+    const items = result.items || []
+    console.log(`[MMS] 이미지 발신자: ${items.length}건`)
+    return { items }
+  } catch (e) {
+    console.warn('[MMS] readMmsHistory 오류:', e?.message)
+    return { items: [] }
   }
 }
 

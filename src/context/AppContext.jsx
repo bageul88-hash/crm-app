@@ -1,12 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback } from 'react'
 import {
   fetchConsults,
   addConsult,
   updateConsult,
   deleteConsult,
   cleanPhone,
-  fetchBranchConfig,
   saveBranchConfig,
+  deleteAllConfigRows,
 } from '../api/sheets'
 import { USERS } from '../auth/users'
 
@@ -38,9 +38,6 @@ function getEffectivePassword(userId) {
   }
 }
 
-function getBranchOverrides() {
-  try { return JSON.parse(localStorage.getItem(BRANCH_OVERRIDES_KEY) || '{}') } catch { return {} }
-}
 
 function getSavedUser() {
   try {
@@ -72,23 +69,11 @@ export function AppProvider({ children }) {
     try { return JSON.parse(localStorage.getItem(BRANCH_OVERRIDES_KEY) || '{}') } catch { return {} }
   })
 
-  const loadBranchConfig = useCallback(async () => {
-    try {
-      const config = await fetchBranchConfig()
-      if (config && Object.keys(config).length > 0) {
-        setBranchOverrides(config)
-        localStorage.setItem(BRANCH_OVERRIDES_KEY, JSON.stringify(config))
-      }
-    } catch {}
-  }, [])
-
-  useEffect(() => {
-    loadBranchConfig()
-  }, [loadBranchConfig])
   const [consults, setConsults] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [saveError, setSaveError] = useState(null)
+  const [saveSuccess, setSaveSuccess] = useState(null)
   const [currentUser, setCurrentUser] = useState(getSavedUser)
 
   const login = useCallback((id, password) => {
@@ -136,13 +121,11 @@ export function AppProvider({ children }) {
     setBranchOverrides(updated)
 
     const ov = updated[branchId] || {}
-    try {
-      await saveBranchConfig(branchId, {
-        displayName: ov.displayName || '',
-        principalName: ov.principalName || '',
-        loginId: ov.loginId || '',
-      })
-    } catch {}
+    await saveBranchConfig(branchId, {
+      displayName: ov.displayName || '',
+      principalName: ov.principalName || '',
+      loginId: ov.loginId || '',
+    })
 
     if (newPassword) {
       const pwOvs = JSON.parse(localStorage.getItem(PW_OVERRIDES_KEY) || '{}')
@@ -191,6 +174,24 @@ export function AppProvider({ children }) {
     setCurrentUser(null)
   }, [])
 
+  // DB에서 받아온 branchConfig를 branchOverrides + currentUser 양쪽에 동기화
+  const applyBranchConfig = useCallback((branchConfig) => {
+    setBranchOverrides(prev => {
+      const next = { ...prev, ...branchConfig }
+      localStorage.setItem(BRANCH_OVERRIDES_KEY, JSON.stringify(next))
+      return next
+    })
+    setCurrentUser(prev => {
+      if (!prev?.branchId || !branchConfig[prev.branchId]) return prev
+      const cfg = branchConfig[prev.branchId]
+      return {
+        ...prev,
+        branchName: cfg.displayName || prev.branchName,
+        name: cfg.principalName || prev.name,
+      }
+    })
+  }, [])
+
   // 전체 새로고침: 캐시 즉시 표시 → 백그라운드 갱신
   const load = useCallback(async () => {
     const cached = loadCache()
@@ -201,9 +202,12 @@ export function AppProvider({ children }) {
     }
     setError(null)
     try {
-      const data = await fetchConsults()
+      const { consults: data, branchConfig } = await fetchConsults()
       setConsults(data)
       saveCache(data)
+      if (branchConfig && Object.keys(branchConfig).length > 0) {
+        applyBranchConfig(branchConfig)
+      }
     } catch (e) {
       if (!cached) setError(e.message || '데이터를 불러오지 못했습니다')
     } finally {
@@ -214,9 +218,12 @@ export function AppProvider({ children }) {
   // 백그라운드 재동기화 (스피너 없음)
   const silentSync = useCallback(async () => {
     try {
-      const data = await fetchConsults()
+      const { consults: data, branchConfig } = await fetchConsults()
       setConsults(data)
       saveCache(data)
+      if (branchConfig && Object.keys(branchConfig).length > 0) {
+        applyBranchConfig(branchConfig)
+      }
     } catch (_) { /* 백그라운드 실패는 무시 */ }
   }, [])
 
@@ -225,7 +232,12 @@ export function AppProvider({ children }) {
     setTimeout(() => setSaveError(null), 5000)
   }, [])
 
-  // 낙관적 추가: UI 즉시 반영 → 백그라운드 API → 성공 시 ID 재동기화
+  const showSaveSuccess = useCallback((msg) => {
+    setSaveSuccess(msg)
+    setTimeout(() => setSaveSuccess(null), 4000)
+  }, [])
+
+  // 낙관적 추가: UI 즉시 반영 → 캐시 저장 → 백그라운드 API → 실패 시 롤백
   const add = useCallback(async data => {
     const payload = {
       ...data,
@@ -241,17 +253,29 @@ export function AppProvider({ children }) {
       savedAt: new Date().toISOString().slice(0, 10),
     }
 
-    setConsults(prev => [...prev, optimisticItem])
+    setConsults(prev => {
+      const next = [...prev, optimisticItem]
+      saveCache(next)
+      return next
+    })
 
     addConsult(payload)
-      .then(() => silentSync())
+      .then(() => {
+        showSaveSuccess('✅ 서버 저장 완료')
+        // 신규 추가 시 임시 음수 id를 실제 DB 행번호로 교체하기 위해 재동기화
+        silentSync()
+      })
       .catch(() => {
-        setConsults(prev => prev.filter(c => c.id !== tempId))
+        setConsults(prev => {
+          const rolled = prev.filter(c => c.id !== tempId)
+          saveCache(rolled)
+          return rolled
+        })
         showSaveError('저장에 실패했습니다. 다시 시도해주세요.')
       })
-  }, [currentUser, silentSync, showSaveError])
+  }, [currentUser, silentSync, showSaveSuccess, showSaveError])
 
-  // 낙관적 수정: UI 즉시 반영 → 백그라운드 API → 실패 시 롤백
+  // 낙관적 수정: UI 즉시 반영 → 백그라운드 API → 성공 시 캐시 동기화, 실패 시 롤백
   const update = useCallback(async data => {
     const payload = {
       ...data,
@@ -262,20 +286,26 @@ export function AppProvider({ children }) {
     let originalItem = null
     setConsults(prev => {
       originalItem = prev.find(c => c.id === data.id)
-      return prev.map(c =>
+      const next = prev.map(c =>
         c.id === data.id
           ? { ...c, ...payload, phone: cleanPhone(payload.phone) }
           : c
       )
+      saveCache(next)
+      return next
     })
 
-    updateConsult(payload).catch(() => {
-      setConsults(prev =>
-        prev.map(c => (c.id === data.id && originalItem ? originalItem : c))
-      )
-      showSaveError('수정 저장에 실패했습니다. 다시 시도해주세요.')
-    })
-  }, [currentUser, showSaveError])
+    updateConsult(payload)
+      .then(() => showSaveSuccess('✅ 서버 저장 완료'))
+      .catch(err => {
+        setConsults(prev => {
+          const rolled = prev.map(c => (c.id === data.id && originalItem ? originalItem : c))
+          saveCache(rolled)
+          return rolled
+        })
+        showSaveError(`❌ 수정 저장 실패: ${err?.message || '네트워크 오류'}`)
+      })
+  }, [currentUser, showSaveSuccess, showSaveError])
 
   // 낙관적 삭제: UI 즉시 반영 → 백그라운드 API → 실패 시 복구
   const remove = useCallback(async id => {
@@ -333,6 +363,23 @@ export function AppProvider({ children }) {
     return duplicated.length
   }, [visibleConsults, load])
 
+  // DB에서 __config__ 행 전체 삭제 후 현재 branchOverrides를 새 행으로 재저장
+  const cleanupConfigRows = useCallback(async () => {
+    if (currentUser?.role !== 'admin') throw new Error('관리자만 실행할 수 있습니다')
+    const deletedCount = await deleteAllConfigRows()
+    const saved = { ...branchOverrides }
+    for (const [branchId, cfg] of Object.entries(saved)) {
+      if (cfg.displayName || cfg.principalName || cfg.loginId) {
+        await saveBranchConfig(branchId, {
+          displayName: cfg.displayName || '',
+          principalName: cfg.principalName || '',
+          loginId: cfg.loginId || '',
+        })
+      }
+    }
+    return deletedCount
+  }, [currentUser, branchOverrides])
+
   return (
     <AppContext.Provider
       value={{
@@ -349,11 +396,14 @@ export function AppProvider({ children }) {
         loading,
         error,
         saveError,
+        saveSuccess,
         load,
+        silentSync,
         add,
         update,
         remove,
         removeDuplicates,
+        cleanupConfigRows,
       }}
     >
       {children}

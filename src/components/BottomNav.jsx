@@ -22,7 +22,7 @@ export default function BottomNav() {
   return (
     <nav className="bottom-nav">
       <span style={{ position: 'absolute', top: 2, right: 6, fontSize: 9, color: 'var(--text3)', opacity: 0.7, pointerEvents: 'none' }}>
-        v26.05.30-1230
+        v26.05.30-1245
       </span>
       {items.map(item => {
         const active =

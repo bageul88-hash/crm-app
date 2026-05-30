@@ -1,6 +1,36 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useCallback } from 'react'
 import { useApp } from './context/AppContext'
+import { App as CapApp } from '@capacitor/app'
+
+const TELEGRAM_DAYS = ['일','월','화','수','목','금','토']
+
+function fmtKrTime(timeStr) {
+  if (!timeStr) {
+    const n = new Date()
+    const h = n.getHours(), m = n.getMinutes()
+    return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(m).padStart(2,'0')}`
+  }
+  const [h, m] = timeStr.split(':').map(Number)
+  return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(m).padStart(2,'0')}`
+}
+
+// 텔레그램 발송은 서버(/api/telegram-notify)를 통해 프록시 — 토큰은 Render 환경변수에 보관
+function sendTelegramAttendance(studentName, attendDate, attendTime, totalCount) {
+  const [y, mo, d] = attendDate.split('-').map(Number)
+  const dayName = TELEGRAM_DAYS[new Date(y, mo - 1, d).getDay()]
+  const text =
+    `✅ 출석 완료\n\n` +
+    `👤 ${studentName}\n` +
+    `📅 ${attendDate} (${dayName}요일)\n` +
+    `🕐 ${attendTime}\n` +
+    `📊 총 출석 ${totalCount}회`
+  fetch('/api/telegram-notify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  }).catch(() => {})
+}
 
 import ListPage from './pages/ListPage'
 import InputPage from './pages/InputPage'
@@ -13,11 +43,11 @@ import LoginPage from './pages/LoginPage'
 
 import CallBanner from './components/CallBanner'
 import BottomNav from './components/BottomNav'
-import { useSmsAttendance } from './hooks/useSmsAttendance'
+import { useSmsAttendance, useMmsReceived, normalizeMmsPhone } from './hooks/useSmsAttendance'
 import { useUpdateCheck } from './hooks/useUpdateCheck'
 
 export default function App() {
-  const { load, currentUser, logout, saveError, branchOverrides } = useApp()
+  const { load, silentSync, currentUser, logout, saveError, saveSuccess, branchOverrides, consults } = useApp()
   const navigate = useNavigate()
   const isAdmin = currentUser?.role === 'admin'
 
@@ -25,12 +55,27 @@ export default function App() {
   const headerBranchName = isAdmin ? '본사' : (ov.displayName || currentUser?.branchName || '')
   const headerPrincipalName = isAdmin ? '관리자' : (ov.principalName || currentUser?.name || '')
   const [smsToast, setSmsToast] = useState(null)
+  const [mmsToast, setMmsToast] = useState(null)
 
   useEffect(() => {
     if (currentUser) load()
   }, [currentUser, load])
 
-  const handleSmsAttendance = useCallback((studentName) => {
+  // 앱이 포그라운드로 돌아올 때 지사명/원장명 포함 최신 데이터 동기화
+  useEffect(() => {
+    if (!currentUser) return
+    let handle
+    let cancelled = false
+    CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) silentSync()
+    }).then(h => {
+      if (cancelled) h.remove()
+      else handle = h
+    }).catch(() => {})
+    return () => { cancelled = true; handle?.remove() }
+  }, [currentUser, silentSync])
+
+  const handleSmsAttendance = useCallback((studentName, time) => {
     // localStorage 즉시 반영 (AttendancePage가 마운트되지 않아도 보존)
     try {
       const saved = localStorage.getItem('attendance_students')
@@ -46,8 +91,22 @@ export default function App() {
       }
     } catch (_) {}
 
-    // AttendancePage가 마운트된 경우 in-memory 상태도 갱신
-    window.dispatchEvent(new CustomEvent('smsAttendance', { detail: { studentName } }))
+    // AttendancePage in-memory 상태 갱신 (time 포함)
+    window.dispatchEvent(new CustomEvent('smsAttendance', { detail: { studentName, time } }))
+
+    // 텔레그램 출석 알림
+    try {
+      const now = new Date()
+      const attendDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+      const attendTime = fmtKrTime(time)
+      const todayStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+      const allRecs = JSON.parse(localStorage.getItem('attendance_records') || '{}')
+      const todayHas = (allRecs[todayStr] || []).some(e => (typeof e === 'string' ? e : e?.name) === studentName)
+      const historical = Object.values(allRecs).reduce((sum, list) =>
+        sum + (list || []).filter(e => (typeof e === 'string' ? e : e?.name) === studentName).length, 0)
+      const totalCount = todayHas ? historical : historical + 1
+      sendTelegramAttendance(studentName, attendDate, attendTime, totalCount)
+    } catch (_) {}
 
     // 토스트 표시
     setSmsToast(studentName)
@@ -55,6 +114,29 @@ export default function App() {
   }, [])
 
   useSmsAttendance(handleSmsAttendance)
+
+  const handleMmsReceived = useCallback((rawPhone) => {
+    const phone = normalizeMmsPhone(rawPhone)
+    // localStorage MMS 캐시에 즉시 추가
+    try {
+      const cached = localStorage.getItem('crm_mms_senders')
+      const set = cached ? new Set(JSON.parse(cached)) : new Set()
+      set.add(phone)
+      localStorage.setItem('crm_mms_senders', JSON.stringify([...set]))
+    } catch {}
+    // 기등록 번호 체크
+    const existing = consults.find(c => c.phone === phone)
+    if (existing) {
+      navigate(`/detail/${existing.id}`)
+      setMmsToast(`📷 이미 등록된 상담 — ${phone}`)
+    } else {
+      navigate('/input', { state: { phone, hasPhoto: '유' } })
+      setMmsToast(`📷 MMS 수신 — ${phone} 신규 등록`)
+    }
+    setTimeout(() => setMmsToast(null), 5000)
+  }, [consults, navigate])
+
+  useMmsReceived(handleMmsReceived)
 
   const { update, dismiss } = useUpdateCheck()
 
@@ -117,31 +199,27 @@ export default function App() {
       <CallBanner />
       <BottomNav />
 
-      {smsToast && (
-        <div style={{
-          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          background: '#16a34a', color: '#fff', borderRadius: 12,
-          padding: '12px 20px', fontSize: 14, fontWeight: 600,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
-          display: 'flex', alignItems: 'center', gap: 8,
-          whiteSpace: 'nowrap',
-        }}>
-          <span>✅</span>
-          <span>{smsToast} 학생 등원 자동 체크</span>
-        </div>
-      )}
-
-      {saveError && (
-        <div style={{
-          position: 'fixed', bottom: smsToast ? 140 : 80, left: '50%', transform: 'translateX(-50%)',
-          background: '#dc2626', color: '#fff', borderRadius: 12,
-          padding: '12px 20px', fontSize: 14, fontWeight: 600,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
-          whiteSpace: 'nowrap',
-        }}>
-          {saveError}
-        </div>
-      )}
+      {(() => {
+        // 토스트를 아래에서 위로 60px 간격으로 쌓기
+        const toasts = [
+          smsToast && { key: 'sms', bg: '#16a34a', node: <><span>✅</span><span>{smsToast} 학생 등원 자동 체크</span></>, flex: true },
+          mmsToast && { key: 'mms', bg: '#0ea5e9', node: mmsToast },
+          saveSuccess && { key: 'success', bg: '#16a34a', node: saveSuccess },
+          saveError && { key: 'error', bg: '#dc2626', node: saveError, wide: true },
+        ].filter(Boolean)
+        return toasts.map((t, i) => (
+          <div key={t.key} style={{
+            position: 'fixed', bottom: 80 + i * 60, left: '50%', transform: 'translateX(-50%)',
+            background: t.bg, color: '#fff', borderRadius: 12,
+            padding: '12px 20px', fontSize: 14, fontWeight: 600,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 9999,
+            ...(t.flex ? { display: 'flex', alignItems: 'center', gap: 8 } : {}),
+            ...(t.wide ? { maxWidth: '90vw', textAlign: 'center' } : { whiteSpace: 'nowrap' }),
+          }}>
+            {t.node}
+          </div>
+        ))
+      })()}
 
       {update && (
         <div style={{
