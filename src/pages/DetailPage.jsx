@@ -2,6 +2,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import SmsModal from '../components/SmsModal'
+import { useAttendanceTotals } from '../hooks/useAttendanceTotals'
+import AttendanceHistoryModal from '../components/AttendanceHistoryModal'
+
+const ATTENDANCE_CATEGORIES = ['수업중', '수업종료']
+const ATTENDANCE_RESULTS = ['환불', '등록']
+
+function shouldShowAttendance(c) {
+  return ATTENDANCE_CATEGORIES.includes(c.category) || ATTENDANCE_RESULTS.includes(c.diagResult)
+}
 
 export default function DetailPage() {
   const { id } = useParams()
@@ -10,6 +19,8 @@ export default function DetailPage() {
   const [confirm, setConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showSms, setShowSms] = useState(false)
+  const [showAttendance, setShowAttendance] = useState(false)
+  const attendanceTotals = useAttendanceTotals()
 
   const c = consults.find(x => String(x.id) === String(id))
 
@@ -51,7 +62,17 @@ export default function DetailPage() {
         marginBottom: 20,
       }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{c.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 22, fontWeight: 700 }}>{c.name}</span>
+            {shouldShowAttendance(c) && attendanceTotals[c.name] > 0 && (
+              <span
+                onClick={() => setShowAttendance(true)}
+                style={{ fontSize: 12, color: '#3b82f6', fontWeight: 600, cursor: 'pointer' }}
+              >
+                총 출석 {attendanceTotals[c.name]}회
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: 14, color: 'var(--text2)', marginTop: 4 }}>{c.phone}</div>
         </div>
         <span className={`badge badge-${c.category}`} style={{ fontSize: 14, padding: '6px 14px' }}>
@@ -114,6 +135,14 @@ export default function DetailPage() {
       {/* 문자 발송 모달 */}
       {showSms && (
         <SmsModal consult={c} onClose={() => setShowSms(false)} />
+      )}
+
+      {/* 출석 이력 모달 */}
+      {showAttendance && (
+        <AttendanceHistoryModal
+          studentName={c.name}
+          onClose={() => setShowAttendance(false)}
+        />
       )}
     </div>
   )
