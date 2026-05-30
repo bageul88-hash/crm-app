@@ -66,7 +66,7 @@ const CHIP_STYLE = {
   '가맹':   { bg: '#f5f3ff', color: '#7c3aed', borderColor: '#ddd6fe' },
 }
 
-export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
+export default function ConsultCard({ consult, onClick, onEdit, onDelete, attendanceCount = 0 }) {
   const c = consult || {}
   const status = getStatus(c)
   const lessonText = getLessonText(c)
@@ -85,7 +85,12 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete }) {
     >
       <div className="consult-card-top">
         <div className="consult-info">
-          <h3>{c.name || '(이름없음)'}</h3>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span>{c.name || '(이름없음)'}</span>
+            <span style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>
+              총 출석 {attendanceCount}회
+            </span>
+          </h3>
           <p className="consult-phone">
             {phone}
             {c.age ? ` · ${formatAge(c.age)}` : ''}

@@ -1,13 +1,15 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { CATEGORY_TABS, filterByTab } from '../api/sheets'
+import { CATEGORY_TABS, filterByTab, cleanPhone } from '../api/sheets'
+import { readMmsHistory, normalizeMmsPhone } from '../hooks/useSmsAttendance'
 import ConsultCard from '../components/ConsultCard'
+import { useAttendanceTotals } from '../hooks/useAttendanceTotals'
 
 // 탭 순서 재정의: 수업종료·핑크·환불·미등록·연결·가맹·전체
 const MAIN_TABS = ['예약', '문의', '수업중']
 // 서브탭: 가맹 바로 옆(뒤)에 전체 고정
-const SUB_TABS = ['수업종료', '펑크', '환불', '미등록', '연결', '가맹', '수업자료', '전체']
+const SUB_TABS = ['수업종료', '펑크', '크레임', '환불', '미등록', '연결', '가맹', '수업자료', '전체', '📷 이미지']
 
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
@@ -124,6 +126,7 @@ export default function ListPage() {
   const { consults, loading, error, remove } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
+  const attendanceTotals = useAttendanceTotals()
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
@@ -135,6 +138,34 @@ export default function ListPage() {
   const [search, setSearch] = useState('')
   const [inputVal, setInputVal] = useState('')
   const [showSubTabs, setShowSubTabs] = useState(false)
+
+  const MMS_CACHE_KEY = 'crm_mms_senders'
+
+  // MMS 이미지 발신자 전화번호 Set — 캐시에서 즉시 초기화
+  const [mmsSenders, setMmsSenders] = useState(() => {
+    try {
+      const cached = localStorage.getItem(MMS_CACHE_KEY)
+      if (cached) return new Set(JSON.parse(cached))
+    } catch {}
+    return null
+  })
+  const [mmsLoading, setMmsLoading] = useState(false)
+  const [mmsScanned, setMmsScanned] = useState(false)
+
+  // '📷 이미지' 탭 선택 시 디바이스 재스캔 (세션당 1회) — 캐시는 즉시 표시
+  useEffect(() => {
+    if (tab !== '📷 이미지' || mmsScanned || mmsLoading) return
+    setMmsLoading(true)
+    readMmsHistory(3000).then(({ items }) => {
+      const phones = new Set(
+        items.map(i => normalizeMmsPhone(i.phone)).filter(p => p.length >= 9)
+      )
+      setMmsSenders(phones)
+      try { localStorage.setItem(MMS_CACHE_KEY, JSON.stringify([...phones])) } catch {}
+      setMmsScanned(true)
+      setMmsLoading(false)
+    })
+  }, [tab, mmsScanned, mmsLoading])
   // 시간 제한 없이 클릭 횟수로만 판단
   const clickCountRef = useRef({ tab: null, count: 0 })
   const composingRef = useRef(false)
@@ -159,13 +190,26 @@ export default function ListPage() {
   const counts = useMemo(() => {
     const map = {}
     for (const t of ALL_TABS) {
-      map[t] = filterByTab(consults, t).length
+      if (t === '📷 이미지') {
+        map[t] = consults.filter(c =>
+          c.hasPhoto === '유' || (mmsSenders?.has(cleanPhone(c.phone)))
+        ).length
+      } else {
+        map[t] = filterByTab(consults, t).length
+      }
     }
     return map
-  }, [consults])
+  }, [consults, mmsSenders])
 
   const filtered = useMemo(() => {
-    let list = filterByTab(consults, tab)
+    let list
+    if (tab === '📷 이미지') {
+      list = consults.filter(c =>
+        c.hasPhoto === '유' || (mmsSenders?.has(cleanPhone(c.phone)))
+      )
+    } else {
+      list = filterByTab(consults, tab)
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(c =>
@@ -173,12 +217,19 @@ export default function ListPage() {
         String(c.phone || '').includes(q)
       )
     }
+    if (tab === '예약') {
+      return [...list].sort((a, b) => {
+        const da = a.diagDate || ''
+        const db = b.diagDate || ''
+        return da.localeCompare(db)
+      })
+    }
     return [...list].sort((a, b) => {
       const da = a.inquiryDate || a.savedAt || ''
       const db = b.inquiryDate || b.savedAt || ''
       return db.localeCompare(da)
     })
-  }, [consults, tab, search])
+  }, [consults, tab, search, mmsSenders])
 
   const handleDelete = async consult => {
     if (!window.confirm(`"${consult.name}" 상담을 삭제할까요?`)) return
@@ -296,9 +347,18 @@ export default function ListPage() {
             데이터를 불러오는 중입니다...
           </div>
         )}
-        {!loading && !error && filtered.length === 0 && (
+        {tab === '📷 이미지' && mmsLoading && (
+          <div className="empty-box" style={{ color: 'var(--text3)', fontSize: 13 }}>
+            MMS 이미지 내역을 불러오는 중...
+          </div>
+        )}
+        {!loading && !error && !mmsLoading && filtered.length === 0 && (
           <div className="empty-box">
-            {search ? '검색 결과가 없습니다' : '등록된 상담이 없습니다'}
+            {search
+              ? '검색 결과가 없습니다'
+              : tab === '📷 이미지'
+                ? '이미지를 보낸 문의가 없습니다'
+                : '등록된 상담이 없습니다'}
           </div>
         )}
         {filtered.length > 0 && (
@@ -307,6 +367,7 @@ export default function ListPage() {
               <ConsultCard
                 key={c.id}
                 consult={c}
+                attendanceCount={attendanceTotals[c.name] || 0}
                 onClick={() => navigate(`/detail/${c.id}`)}
                 onEdit={() => navigate(`/input/${c.id}`)}
                 onDelete={() => handleDelete(c)}
