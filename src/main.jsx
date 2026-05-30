@@ -4,6 +4,9 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AppProvider } from './context/AppContext'
 import './index.css'
+import { CapacitorUpdater } from '@capgo/capacitor-updater'
+
+CapacitorUpdater.notifyAppReady()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
