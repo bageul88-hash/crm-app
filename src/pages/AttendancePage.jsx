@@ -45,11 +45,11 @@ export default function AttendancePage() {
   // 실시간 SMS 수신 → 즉시 반영
   useEffect(() => {
     const handler = (e) => {
-      const { studentName, time } = e.detail
+      const { studentName, time, phone } = e.detail
       setRecords(prev => {
         const next = { ...prev }
         if (!hasEntry(next[TODAY_STR], studentName)) {
-          next[TODAY_STR] = [...(next[TODAY_STR] || []), { name: studentName, time: time || null }]
+          next[TODAY_STR] = [...(next[TODAY_STR] || []), { name: studentName, time: time || null, phone: phone || null }]
           localStorage.setItem('attendance_records', JSON.stringify(next))
         }
         return next

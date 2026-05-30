@@ -20,7 +20,7 @@ export default function DetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [showSms, setShowSms] = useState(false)
   const [showAttendance, setShowAttendance] = useState(false)
-  const attendanceTotals = useAttendanceTotals()
+  const { getFilteredCount } = useAttendanceTotals()
 
   const c = consults.find(x => String(x.id) === String(id))
 
@@ -64,12 +64,12 @@ export default function DetailPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 22, fontWeight: 700 }}>{c.name}</span>
-            {shouldShowAttendance(c) && attendanceTotals[c.name] > 0 && (
+            {shouldShowAttendance(c) && getFilteredCount(c.name, c.phone, c.inquiryDate) > 0 && (
               <span
                 onClick={() => setShowAttendance(true)}
                 style={{ fontSize: 12, color: '#3b82f6', fontWeight: 600, cursor: 'pointer' }}
               >
-                총 출석 {attendanceTotals[c.name]}회
+                총 출석 {getFilteredCount(c.name, c.phone, c.inquiryDate)}회
               </span>
             )}
           </div>
@@ -141,6 +141,8 @@ export default function DetailPage() {
       {showAttendance && (
         <AttendanceHistoryModal
           studentName={c.name}
+          studentPhone={c.phone}
+          fromDate={c.inquiryDate}
           onClose={() => setShowAttendance(false)}
         />
       )}

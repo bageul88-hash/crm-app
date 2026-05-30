@@ -127,8 +127,8 @@ export default function ListPage() {
   const { consults, loading, error, remove } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
-  const attendanceTotals = useAttendanceTotals()
-  const [attendanceStudent, setAttendanceStudent] = useState(null)
+  const { totals: attendanceTotals, getFilteredCount } = useAttendanceTotals()
+  const [attendanceStudent, setAttendanceStudent] = useState(null) // { name, phone, fromDate }
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
@@ -367,13 +367,13 @@ export default function ListPage() {
           <div className="consult-list">
             {filtered.map(c => {
               const showAttendance = ['수업중', '수업종료', '환불'].includes(tab)
-              const count = showAttendance ? (attendanceTotals[c.name] || 0) : 0
+              const count = showAttendance ? getFilteredCount(c.name, c.phone, c.inquiryDate) : 0
               return (
                 <ConsultCard
                   key={c.id}
                   consult={c}
                   attendanceCount={count}
-                  onAttendanceClick={count > 0 ? () => setAttendanceStudent(c.name) : undefined}
+                  onAttendanceClick={count > 0 ? () => setAttendanceStudent({ name: c.name, phone: c.phone, fromDate: c.inquiryDate }) : undefined}
                   onClick={() => navigate(`/detail/${c.id}`)}
                   onEdit={() => navigate(`/input/${c.id}`)}
                   onDelete={() => handleDelete(c)}
@@ -386,7 +386,9 @@ export default function ListPage() {
 
       {attendanceStudent && (
         <AttendanceHistoryModal
-          studentName={attendanceStudent}
+          studentName={attendanceStudent.name}
+          studentPhone={attendanceStudent.phone}
+          fromDate={attendanceStudent.fromDate}
           onClose={() => setAttendanceStudent(null)}
         />
       )}

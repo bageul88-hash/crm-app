@@ -88,8 +88,19 @@ export default function App() {
       }
     } catch (_) {}
 
-    // AttendancePage in-memory 상태 갱신 (time 포함)
-    window.dispatchEvent(new CustomEvent('smsAttendance', { detail: { studentName, time } }))
+    // 전화번호 조회 (동명이인 분리용)
+    let studentPhone = ''
+    try {
+      const cached = localStorage.getItem('crm_consults_cache')
+      if (cached) {
+        const all = JSON.parse(cached)
+        const found = all.find(c => c.name === studentName)
+        if (found) studentPhone = String(found.phone || '').replace(/\D/g, '')
+      }
+    } catch {}
+
+    // AttendancePage in-memory 상태 갱신 (time + phone 포함)
+    window.dispatchEvent(new CustomEvent('smsAttendance', { detail: { studentName, time, phone: studentPhone } }))
 
     // 텔레그램 출석 알림
     try {
