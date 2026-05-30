@@ -367,7 +367,7 @@ export default function ListPage() {
               <ConsultCard
                 key={c.id}
                 consult={c}
-                attendanceCount={attendanceTotals[c.name] || 0}
+                attendanceCount={['수업중', '수업종료', '환불'].includes(tab) ? (attendanceTotals[c.name] || 0) : 0}
                 onClick={() => navigate(`/detail/${c.id}`)}
                 onEdit={() => navigate(`/input/${c.id}`)}
                 onDelete={() => handleDelete(c)}

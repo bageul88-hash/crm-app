@@ -87,9 +87,11 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete, attend
         <div className="consult-info">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{c.name || '(이름없음)'}</span>
-            <span style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>
-              총 출석 {attendanceCount}회
-            </span>
+            {attendanceCount > 0 && (
+              <span style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>
+                총 출석 {attendanceCount}회
+              </span>
+            )}
           </h3>
           <p className="consult-phone">
             {phone}
