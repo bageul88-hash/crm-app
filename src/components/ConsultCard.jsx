@@ -66,7 +66,7 @@ const CHIP_STYLE = {
   '가맹':   { bg: '#f5f3ff', color: '#7c3aed', borderColor: '#ddd6fe' },
 }
 
-export default function ConsultCard({ consult, onClick, onEdit, onDelete, attendanceCount = 0 }) {
+export default function ConsultCard({ consult, onClick, onEdit, onDelete, attendanceCount = 0, onAttendanceClick }) {
   const c = consult || {}
   const status = getStatus(c)
   const lessonText = getLessonText(c)
@@ -88,7 +88,10 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete, attend
           <h3 style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{c.name || '(이름없음)'}</span>
             {attendanceCount > 0 && (
-              <span style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>
+              <span
+                style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600, cursor: onAttendanceClick ? 'pointer' : 'default' }}
+                onClick={onAttendanceClick ? e => { e.stopPropagation(); onAttendanceClick() } : undefined}
+              >
                 총 출석 {attendanceCount}회
               </span>
             )}

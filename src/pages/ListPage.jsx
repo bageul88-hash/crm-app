@@ -5,6 +5,7 @@ import { CATEGORY_TABS, filterByTab, cleanPhone } from '../api/sheets'
 import { readMmsHistory, normalizeMmsPhone } from '../hooks/useSmsAttendance'
 import ConsultCard from '../components/ConsultCard'
 import { useAttendanceTotals } from '../hooks/useAttendanceTotals'
+import AttendanceHistoryModal from '../components/AttendanceHistoryModal'
 
 // 탭 순서 재정의: 수업종료·핑크·환불·미등록·연결·가맹·전체
 const MAIN_TABS = ['예약', '문의', '수업중']
@@ -127,6 +128,7 @@ export default function ListPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const attendanceTotals = useAttendanceTotals()
+  const [attendanceStudent, setAttendanceStudent] = useState(null)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
@@ -363,19 +365,31 @@ export default function ListPage() {
         )}
         {filtered.length > 0 && (
           <div className="consult-list">
-            {filtered.map(c => (
-              <ConsultCard
-                key={c.id}
-                consult={c}
-                attendanceCount={['수업중', '수업종료', '환불'].includes(tab) ? (attendanceTotals[c.name] || 0) : 0}
-                onClick={() => navigate(`/detail/${c.id}`)}
-                onEdit={() => navigate(`/input/${c.id}`)}
-                onDelete={() => handleDelete(c)}
-              />
-            ))}
+            {filtered.map(c => {
+              const showAttendance = ['수업중', '수업종료', '환불'].includes(tab)
+              const count = showAttendance ? (attendanceTotals[c.name] || 0) : 0
+              return (
+                <ConsultCard
+                  key={c.id}
+                  consult={c}
+                  attendanceCount={count}
+                  onAttendanceClick={count > 0 ? () => setAttendanceStudent(c.name) : undefined}
+                  onClick={() => navigate(`/detail/${c.id}`)}
+                  onEdit={() => navigate(`/input/${c.id}`)}
+                  onDelete={() => handleDelete(c)}
+                />
+              )
+            })}
           </div>
         )}
       </div>
+
+      {attendanceStudent && (
+        <AttendanceHistoryModal
+          studentName={attendanceStudent}
+          onClose={() => setAttendanceStudent(null)}
+        />
+      )}
     </div>
   )
 }
