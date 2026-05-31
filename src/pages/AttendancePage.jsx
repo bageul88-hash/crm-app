@@ -166,20 +166,13 @@ export default function AttendancePage() {
       <SearchInput value={search} onChange={setSearch} placeholder="학생 이름 검색" style={{ marginBottom: 12 }} />
 
       {/* 파란 박스 */}
-      <div style={{ background:'var(--accent)', borderRadius:'var(--radius)', padding:'14px 18px', marginBottom:14, color:'#fff', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div>
-          <div style={{ fontSize:11, opacity:0.8, fontWeight:500, marginBottom:2 }}>오늘 출석일</div>
-          <div style={{ fontSize:17, fontWeight:700 }}>{TODAY_LBL}</div>
-        </div>
-        <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:26, fontWeight:800, lineHeight:1 }}>{todayList.length}</div>
-          <div style={{ fontSize:11, opacity:0.8 }}>명 등원</div>
-        </div>
+      <div style={{ background:'var(--accent)', borderRadius:'var(--radius)', padding:'14px 18px', marginBottom:14, color:'#fff', textAlign:'center' }}>
+        <div style={{ fontSize:17, fontWeight:700 }}>{TODAY_LBL}</div>
       </div>
 
       {/* 탭 버튼 */}
       <div style={{ display:'flex', gap:8, marginBottom:16 }}>
-        {[['attend','출석 현황'],['history','출석 이력']].map(([k,l]) => (
+        {[['attend','오늘 출석 현황'],['history','출석 이력']].map(([k,l]) => (
           <button key={k} type="button" onClick={()=>setTab(k)}
             style={{ flex:1, padding:'9px 0', borderRadius:10, border:'none', fontWeight:700, fontSize:13, cursor:'pointer',
               background: tab===k ? 'var(--accent)' : '#f3f4f6',
@@ -212,7 +205,7 @@ export default function AttendancePage() {
       {tab === 'attend' && (
         <div>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-            <span style={{ fontSize:13, fontWeight:700, color:'var(--text2)' }}>오늘 등원 {todayList.length}등원</span>
+            <span style={{ fontSize:13, fontWeight:700, color:'var(--text2)' }}>오늘 등원 {todayList.length}명</span>
             <button type="button" onClick={loadTodaySms} disabled={loadingToday}
               style={{ fontSize:18, background:'none', border:'none', color:'var(--text3)', cursor:'pointer', padding:'0 4px' }}>
               {loadingToday ? '⏳' : '🔄'}
