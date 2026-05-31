@@ -40,6 +40,7 @@ import SMSPage from './pages/SMSPage'
 import DetailPage from './pages/DetailPage'
 import AttendancePage from './pages/AttendancePage'
 import BranchPage from './pages/BranchPage'
+import MemoPage from './pages/MemoPage'
 import LoginPage from './pages/LoginPage'
 
 import CallBanner from './components/CallBanner'
@@ -172,14 +173,24 @@ export default function App() {
 
         <div className="header-actions">
           {isAdmin && (
-            <button
-              type="button"
-              className="header-btn header-btn-branch"
-              onClick={() => navigate('/branch')}
-            >
-              <span>지사</span>
-              <span>관리</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="header-btn header-btn-memo"
+                onClick={() => navigate('/memo')}
+              >
+                <span>본사</span>
+                <span>메모</span>
+              </button>
+              <button
+                type="button"
+                className="header-btn header-btn-branch"
+                onClick={() => navigate('/branch')}
+              >
+                <span>지사</span>
+                <span>관리</span>
+              </button>
+            </>
           )}
           <button type="button" className="header-btn header-btn-logout" onClick={logout}>
             로그아웃
@@ -199,6 +210,7 @@ export default function App() {
           <Route path="/sms" element={<SMSPage />} />
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/branch" element={<BranchPage />} />
+          <Route path="/memo" element={<MemoPage />} />
           <Route path="/detail/:id" element={<DetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
