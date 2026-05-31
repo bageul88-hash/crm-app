@@ -132,6 +132,9 @@ export function AppProvider({ children }) {
       pwOvs[branchId] = newPassword
       localStorage.setItem(PW_OVERRIDES_KEY, JSON.stringify(pwOvs))
     }
+
+    // 저장 확인: Google Sheets에서 최신 config를 받아 화면 갱신
+    silentSync()
   }, [currentUser, branchOverrides])
 
   const getEffectivePw = useCallback((userId) => {

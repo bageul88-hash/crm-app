@@ -303,18 +303,42 @@ export async function deleteAllConfigRows() {
 }
 
 export async function saveBranchConfig(branchId, { displayName, principalName, loginId }) {
+  const feature = JSON.stringify({
+    displayName: displayName ?? '',
+    principalName: principalName ?? '',
+    loginId: loginId ?? '',
+  })
+
+  // 기존 __config__ 행이 있으면 UPDATE, 없으면 ADD (upsert)
+  const json = await getFromSheet()
+  const rows = json.data || []
+  const existing = rows
+    .map((row, i) => ({ id: i + 2, name: String(row[FIELD_MAP.name] ?? '') }))
+    .find(r => r.name === `__config__${branchId}`)
+
+  if (existing) {
+    return postToSheet(
+      {
+        action: 'update',
+        id: existing.id,
+        category: '문의',
+        branchId,
+        branchName: '',
+        name: `__config__${branchId}`,
+        feature,
+      },
+      '지사 정보 저장에 실패했습니다'
+    )
+  }
+
   return postToSheet(
     {
       action: 'add',
       category: '문의',
       branchId,
       branchName: '',
-      name: `__config__${branchId}`,   // name prefix로 config 행 식별
-      feature: JSON.stringify({
-        displayName: displayName ?? '',
-        principalName: principalName ?? '',
-        loginId: loginId ?? '',
-      }),
+      name: `__config__${branchId}`,
+      feature,
     },
     '지사 정보 저장에 실패했습니다'
   )
