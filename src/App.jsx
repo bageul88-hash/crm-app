@@ -164,10 +164,12 @@ export default function App() {
               <strong>상담</strong>
               <strong>CRM</strong>
             </div>
-            <div className="user-box">
-              <strong>{headerBranchName}</strong>
-              <span>{headerPrincipalName}</span>
-            </div>
+            {!isAdmin && (
+              <div className="user-box">
+                <strong>{headerBranchName}</strong>
+                <span>{headerPrincipalName}</span>
+              </div>
+            )}
           </div>
         </button>
 
@@ -178,9 +180,9 @@ export default function App() {
                 type="button"
                 className="header-btn header-btn-memo"
                 onClick={() => navigate('/memo')}
+                style={{ whiteSpace: 'nowrap' }}
               >
-                <span>본사</span>
-                <span>메모</span>
+                본사메모
               </button>
               <button
                 type="button"
