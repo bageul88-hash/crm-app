@@ -189,8 +189,8 @@ export default function App() {
                 className="header-btn header-btn-branch"
                 onClick={() => navigate('/branch')}
               >
-                <span>지사</span>
-                <span>관리</span>
+                <span>문자</span>
+                <span>예약</span>
               </button>
             </>
           )}

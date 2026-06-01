@@ -9,7 +9,7 @@ const NAV = [
   { path: '/attendance', icon: '✔', label: '출석관리' },
 ]
 
-const ADMIN_NAV = { path: '/branch', icon: '⊞', label: '지사관리' }
+const ADMIN_NAV = { path: '/branch', icon: '⊞', label: '관리' }
 
 export default function BottomNav() {
   const location = useLocation()
