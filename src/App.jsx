@@ -178,11 +178,11 @@ export default function App() {
             <>
               <button
                 type="button"
-                className="header-btn header-btn-memo"
+                className="header-btn header-btn-branch"
                 onClick={() => navigate('/memo')}
-                style={{ whiteSpace: 'nowrap' }}
               >
-                본사메모
+                <span>본사</span>
+                <span>메모</span>
               </button>
               <button
                 type="button"
