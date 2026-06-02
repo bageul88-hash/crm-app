@@ -90,8 +90,16 @@ export default function SmsReservationPage() {
       // 출석기록 phone (숫자만)
       const attendPhone = phoneMap[name] ? String(phoneMap[name]).replace(/[^0-9]/g, '') : ''
 
-      // 이름 일치 우선, 없으면 전화번호로 2차 매칭
+      // 1차: 이름 정확 일치
+      // 2차: 이름 포함(contains) 매칭
+      // 3차: 전화번호 일치
       let allMatches = consults.filter(c => normName(c.name) === nameNorm)
+      if (allMatches.length === 0) {
+        allMatches = consults.filter(c => {
+          const cn = normName(c.name)
+          return cn.includes(nameNorm) || nameNorm.includes(cn)
+        })
+      }
       if (allMatches.length === 0 && attendPhone) {
         allMatches = consults.filter(c => {
           const cPhone = String(c.phone || '').replace(/[^0-9]/g, '')
@@ -104,8 +112,29 @@ export default function SmsReservationPage() {
         ? allMatches.reduce((best, c) => Number(c.id) > Number(best.id) ? c : best)
         : null
 
-      // 최신 구분이 수업종료면 제외
-      if (latestConsult?.category === '수업종료') continue
+      // 수업종료 필터: 직접 매칭된 경우
+      if (latestConsult?.category === '수업종료') {
+        console.log('[수업종료 제외]', name, `→ id=${latestConsult.id} category=${latestConsult.category}`)
+        continue
+      }
+
+      // 매칭 실패 시 폭넓은 이름 검색으로 수업종료 여부 재확인
+      // (이름 불일치로 latestConsult=null이어도 수업종료 학생이면 제외)
+      if (!latestConsult && consults.length > 0) {
+        const hasEnded = consults.some(c =>
+          c.category === '수업종료' &&
+          (normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name)))
+        )
+        if (hasEnded) {
+          console.log('[수업종료 제외 - 폭넓은 매칭]', name)
+          continue
+        }
+      }
+
+      console.log('[대기 목록 포함]', name, latestConsult
+        ? `→ id=${latestConsult.id} category=${latestConsult.category}`
+        : '→ CRM 매칭 없음'
+      )
 
       // 전화번호: CRM 매칭 → 출석기록 phone 필드 → 없음 순으로 폴백
       const rawPhone = latestConsult?.phone || attendPhone || ''
@@ -131,6 +160,7 @@ export default function SmsReservationPage() {
     }
 
     result.sort((a, b) => a.round - b.round || a.name.localeCompare(b.name))
+    console.log(`[문자예약] 필터 완료: 출석대상=${Object.keys(totals).filter(n => isTarget(totals[n])).length}명 → 대기목록=${result.length}명 (CRM=${consults.length}건)`)
     setStudents(result)
     setHistory(hist)
   }, [contextConsults])
@@ -483,38 +513,54 @@ export default function SmsReservationPage() {
                             if (!resolvedPhone) {
                               const { phone: smsPhone, found } =
                                 await searchPhoneByStudentName(s.name)
-                              if (found) {
-                                resolvedPhone = smsPhone
-                              }
-                              // found 여부 무관하게 계속 진행 (직접 입력 안내는 폼에서)
+                              if (found) resolvedPhone = smsPhone
                             }
 
-                            // 이동할 상담 결정: consultId → 이름 매칭 → 전화번호 매칭
-                            const doNavigate = (id) => {
-                              const state = resolvedPhone && resolvedPhone !== s.phone
+                            // 상담 수정 페이지로 이동 (phone 있으면 state로 전달)
+                            const goEdit = (id) => {
+                              const extra = resolvedPhone && resolvedPhone !== s.phone
                                 ? { state: { phone: resolvedPhone } }
                                 : undefined
-                              navigate(`/input/${id}?returnTo=/sms-reservation`, state)
+                              navigate(`/input/${id}?returnTo=/sms-reservation`, extra)
                             }
 
+                            // 1순위: 이미 찾아둔 consultId
                             if (s.consultId) {
-                              doNavigate(s.consultId)
+                              goEdit(s.consultId)
                               return
                             }
 
-                            // consultId 없음 → 런타임 검색
+                            // 2순위: contextConsults에서 런타임 검색
+                            //   - 정확히 일치 (normName)
+                            //   - 이름 포함 (contains)
+                            //   - 전화번호 일치
                             const nameNorm = normName(s.name)
+                            const phone = resolvedPhone
+                            console.log('[수정] 상담 검색 시작:', { name: s.name, nameNorm, phone, consultsCount: contextConsults.length })
+
                             const found =
                               contextConsults.find(c => normName(c.name) === nameNorm) ||
-                              (resolvedPhone && contextConsults.find(c =>
-                                String(c.phone || '').replace(/[^0-9]/g, '') === resolvedPhone
+                              contextConsults.find(c => normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name))) ||
+                              (phone && contextConsults.find(c =>
+                                String(c.phone || '').replace(/[^0-9]/g, '') === phone
                               ))
 
+                            console.log('[수정] 검색 결과:', found ? `id=${found.id} name=${found.name}` : '없음')
+
                             if (found) {
-                              doNavigate(found.id)
-                            } else {
-                              alert('기존 상담을 찾을 수 없습니다.\n신규 버튼으로 새 상담을 등록해주세요.')
+                              goEdit(found.id)
+                              return
                             }
+
+                            // 3순위: 상담 없음 → 신규 등록 폼으로 이동 (phone·이름 pre-fill)
+                            // 팝업 대신 바로 이동해서 직접 입력 가능하게
+                            console.log('[수정] 기존 상담 없음 → 신규 등록 폼으로 이동')
+                            navigate('/input', {
+                              state: {
+                                phone: resolvedPhone || '',
+                                inquiryDate: s.firstSmsDate || '',
+                              },
+                            })
                           }}
                           style={{
                             padding: '6px 11px', borderRadius: 8,
