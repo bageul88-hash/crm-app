@@ -90,3 +90,14 @@ export async function readSmsHistory(limit = 5000) {
     return { items: [], scanned: 0, matched: 0 }
   }
 }
+
+// SMS inbox에서 학생 이름이 포함된 [참바른글씨] 문자를 찾아 발신자 번호 반환
+export async function searchPhoneByStudentName(name) {
+  try {
+    const result = await SmsPlugin.searchPhoneByStudentName({ name })
+    return { phone: result.phone || '', found: result.found === true }
+  } catch (e) {
+    console.warn('[SMS] searchPhoneByStudentName 실패:', e?.message)
+    return { phone: '', found: false }
+  }
+}

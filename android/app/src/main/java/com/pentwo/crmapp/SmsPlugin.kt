@@ -317,6 +317,48 @@ class SmsPlugin : Plugin() {
         Log.d("CRM_SMS", "SMS 수신 리스너 등록 완료")
     }
 
+    // SMS inbox에서 학생 이름이 포함된 문자를 찾아 발신자 번호 반환
+    @PluginMethod
+    fun searchPhoneByStudentName(call: PluginCall) {
+        val name = call.getString("name") ?: run {
+            call.reject("name is required")
+            return
+        }
+        val ret = JSObject()
+        var foundPhone = ""
+        try {
+            val cursor = context.contentResolver.query(
+                android.net.Uri.parse("content://sms/inbox"),
+                arrayOf("address", "body"),
+                null, null,
+                "date DESC"
+            )
+            cursor?.use {
+                val addrIdx = it.getColumnIndex("address")
+                val bodyIdx = it.getColumnIndex("body")
+                while (it.moveToNext()) {
+                    val body    = if (bodyIdx >= 0) it.getString(bodyIdx) ?: "" else ""
+                    val address = if (addrIdx >= 0) it.getString(addrIdx) ?: "" else ""
+                    if (body.contains("[참바른글씨]") && body.contains(name)) {
+                        val cleaned = address.replace(Regex("[^0-9]"), "")
+                        if (cleaned.isNotEmpty()) {
+                            foundPhone = if (cleaned.startsWith("82") && cleaned.length == 12)
+                                "0" + cleaned.substring(2)
+                            else cleaned
+                            break
+                        }
+                    }
+                }
+            }
+            Log.d("CRM_SMS", "searchPhoneByStudentName($name) → $foundPhone")
+        } catch (e: Exception) {
+            Log.e("CRM_SMS", "searchPhoneByStudentName 오류", e)
+        }
+        ret.put("phone", foundPhone)
+        ret.put("found", foundPhone.isNotEmpty())
+        call.resolve(ret)
+    }
+
     // "[참바른글씨] OOO 학생이 등원하였습니다" 패턴에서 이름 추출
     // \s*학생이 : 이름과 "학생이" 사이 공백 0개 이상 허용 (공백 없는 경우 포함)
     private fun parseStudentName(body: String): String? {

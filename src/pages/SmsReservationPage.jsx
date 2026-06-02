@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { searchPhoneByStudentName } from '../hooks/useSmsAttendance'
 
 const DEFAULT_TEMPLATE = `안녕하세요, 참바른글씨입니다. 😊
 {학생이름} 학생이 총 {N}회 수업을 완료하였습니다.
@@ -36,6 +38,7 @@ function fmtDateTime(iso) {
 
 export default function SmsReservationPage() {
   const { currentUser, consults: contextConsults } = useApp()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('pending')
   const [students, setStudents] = useState([])
   const [history, setHistory] = useState(loadSmsHistory)
@@ -82,9 +85,19 @@ export default function SmsReservationPage() {
       const round = calcRound(count)
       if (histSet.has(`${name}_${round}`)) continue
 
-      // 이름 정규화 매칭으로 공백 차이 흡수
+      // 이름 정규화 매칭 (공백 차이 흡수)
       const nameNorm = normName(name)
-      const allMatches = consults.filter(c => normName(c.name) === nameNorm)
+      // 출석기록 phone (숫자만)
+      const attendPhone = phoneMap[name] ? String(phoneMap[name]).replace(/[^0-9]/g, '') : ''
+
+      // 이름 일치 우선, 없으면 전화번호로 2차 매칭
+      let allMatches = consults.filter(c => normName(c.name) === nameNorm)
+      if (allMatches.length === 0 && attendPhone) {
+        allMatches = consults.filter(c => {
+          const cPhone = String(c.phone || '').replace(/[^0-9]/g, '')
+          return cPhone && cPhone === attendPhone
+        })
+      }
 
       // 여러 기록이 있을 때 최신 기록(id 최대값) 기준으로 현재 상태 판단
       const latestConsult = allMatches.length > 0
@@ -95,7 +108,16 @@ export default function SmsReservationPage() {
       if (latestConsult?.category === '수업종료') continue
 
       // 전화번호: CRM 매칭 → 출석기록 phone 필드 → 없음 순으로 폴백
-      const rawPhone = latestConsult?.phone || phoneMap[name] || ''
+      const rawPhone = latestConsult?.phone || attendPhone || ''
+
+      // 해당 학생의 가장 오래된 문자 발송일
+      const studentHist = hist.filter(h => normName(h.studentName) === nameNorm)
+      const firstSmsDate = studentHist.length > 0
+        ? studentHist
+            .reduce((min, h) => (h.sentAt < min ? h.sentAt : min), studentHist[0].sentAt)
+            .slice(0, 10)
+        : null
+
       result.push({
         id: `${name}_${count}`,
         name,
@@ -103,6 +125,8 @@ export default function SmsReservationPage() {
         round,
         phone: rawPhone.replace(/[^0-9]/g, ''),
         phoneDisplay: rawPhone,
+        consultId: latestConsult?.id || null,
+        firstSmsDate,
       })
     }
 
@@ -341,7 +365,7 @@ export default function SmsReservationPage() {
             </div>
             <button
               type="button"
-              onClick={refresh}
+              onClick={() => { silentSync(); refresh() }}
               style={{
                 fontSize: 13, padding: '7px 13px', borderRadius: 9,
                 border: '1px solid var(--border)', background: '#f3f4f6',
@@ -422,6 +446,85 @@ export default function SmsReservationPage() {
                         <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
                           📱 {s.phoneDisplay || s.phone || '번호 없음'}
                         </div>
+                      </div>
+
+                      {/* 버튼 영역 */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
+                        {/* 신규 상담 등록 버튼 */}
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation()
+                            navigate('/input', {
+                              state: {
+                                phone: s.phone,
+                                inquiryDate: s.firstSmsDate || '',
+                              },
+                            })
+                          }}
+                          style={{
+                            padding: '6px 11px', borderRadius: 8,
+                            border: '1px solid #bfdbfe', background: '#eff6ff',
+                            color: '#1d4ed8', fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          신규
+                        </button>
+
+                        {/* 기존 상담 수정 버튼 */}
+                        <button
+                          type="button"
+                          onClick={async e => {
+                            e.stopPropagation()
+
+                            // 전화번호가 없으면 SMS inbox에서 자동 검색
+                            let resolvedPhone = s.phone
+                            if (!resolvedPhone) {
+                              const { phone: smsPhone, found } =
+                                await searchPhoneByStudentName(s.name)
+                              if (found) {
+                                resolvedPhone = smsPhone
+                              }
+                              // found 여부 무관하게 계속 진행 (직접 입력 안내는 폼에서)
+                            }
+
+                            // 이동할 상담 결정: consultId → 이름 매칭 → 전화번호 매칭
+                            const doNavigate = (id) => {
+                              const state = resolvedPhone && resolvedPhone !== s.phone
+                                ? { state: { phone: resolvedPhone } }
+                                : undefined
+                              navigate(`/input/${id}?returnTo=/sms-reservation`, state)
+                            }
+
+                            if (s.consultId) {
+                              doNavigate(s.consultId)
+                              return
+                            }
+
+                            // consultId 없음 → 런타임 검색
+                            const nameNorm = normName(s.name)
+                            const found =
+                              contextConsults.find(c => normName(c.name) === nameNorm) ||
+                              (resolvedPhone && contextConsults.find(c =>
+                                String(c.phone || '').replace(/[^0-9]/g, '') === resolvedPhone
+                              ))
+
+                            if (found) {
+                              doNavigate(found.id)
+                            } else {
+                              alert('기존 상담을 찾을 수 없습니다.\n신규 버튼으로 새 상담을 등록해주세요.')
+                            }
+                          }}
+                          style={{
+                            padding: '6px 11px', borderRadius: 8,
+                            border: '1px solid var(--border)', background: '#f3f4f6',
+                            color: 'var(--text2)', fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          수정
+                        </button>
                       </div>
                     </div>
                   )
