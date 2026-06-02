@@ -23,6 +23,7 @@ function formatAge(value) {
 }
 
 function getStatus(consult) {
+  if (consult.category === '수업종료') return '수업종료'
   if (consult.diagResult) return consult.diagResult
   if (consult.category) return consult.category
   return ''
@@ -49,21 +50,23 @@ function getLessonText(item) {
 }
 
 const CATEGORY_ACCENT = {
-  '예약':   '#2563eb',
-  '문의':   '#d97706',
-  '수업중': '#16a34a',
-  '등록':   '#16a34a',
-  '펑크':   '#db2777',
-  '가맹':   '#7c3aed',
+  '예약':    '#2563eb',
+  '문의':    '#d97706',
+  '수업중':  '#16a34a',
+  '등록':    '#16a34a',
+  '펑크':    '#db2777',
+  '가맹':    '#7c3aed',
+  '수업종료': '#6b7280',
 }
 
 const CHIP_STYLE = {
-  '예약':   { bg: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe' },
-  '문의':   { bg: '#fff7ed', color: '#d97706', borderColor: '#fed7aa' },
-  '수업중': { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
-  '등록':   { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
-  '펑크':   { bg: '#fdf2f8', color: '#db2777', borderColor: '#fbcfe8' },
-  '가맹':   { bg: '#f5f3ff', color: '#7c3aed', borderColor: '#ddd6fe' },
+  '예약':    { bg: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe' },
+  '문의':    { bg: '#fff7ed', color: '#d97706', borderColor: '#fed7aa' },
+  '수업중':  { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
+  '등록':    { bg: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' },
+  '펑크':    { bg: '#fdf2f8', color: '#db2777', borderColor: '#fbcfe8' },
+  '가맹':    { bg: '#f5f3ff', color: '#7c3aed', borderColor: '#ddd6fe' },
+  '수업종료': { bg: '#f3f4f6', color: '#6b7280', borderColor: '#e5e7eb' },
 }
 
 export default function ConsultCard({ consult, onClick, onEdit, onDelete, attendanceCount = 0, onAttendanceClick }) {
@@ -72,7 +75,7 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete, attend
   const lessonText = getLessonText(c)
   const phone = c.phone || '-'
 
-  const accentKey = c.diagResult || c.category
+  const accentKey = c.category === '수업종료' ? '수업종료' : (c.diagResult || c.category)
   const accentColor = CATEGORY_ACCENT[accentKey] || '#d1d5db'
   const displayStatus = status === '등록' ? '수업중' : status
   const chipStyle = CHIP_STYLE[status] || { bg: '#f3f4f6', color: '#6b7280', borderColor: '#e5e7eb' }

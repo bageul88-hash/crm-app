@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { checkSmsPermission, requestSmsPermission, readSmsHistory, openSmsSettings } from '../hooks/useSmsAttendance'
+import { readSmsHistory } from '../hooks/useSmsAttendance'
 import SearchInput from '../components/SearchInput'
 
 const TODAY     = new Date()
@@ -33,8 +33,7 @@ export default function AttendancePage() {
   const [loadingToday, setLoadToday]  = useState(false)
   const [loadingAll, setLoadingAll]   = useState(false)
   const [importStat, setImportStat]   = useState(null)  // { total, added, scanned, matched, totalSaved }
-  const [permDenied, setPermDenied]       = useState(false)
-  const [lastUpdated, setLastUpdated]     = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
   const [selectedStudent, setSelectedStudent] = useState(null)
   const lockRef = useRef(false)
 
@@ -61,16 +60,12 @@ export default function AttendancePage() {
     return () => window.removeEventListener('smsAttendance', handler)
   }, [])
 
-  // 오늘 현황용 빠른 로드
+  // 오늘 현황용 빠른 로드 (권한 에러 무시 — SMS 실패 시 기존 저장 이력 사용)
   const loadTodaySms = useCallback(async () => {
     if (lockRef.current) return
     lockRef.current = true
     setLoadToday(true)
     try {
-      let ok = await checkSmsPermission()
-      if (!ok) ok = await requestSmsPermission()
-      if (!ok) { setPermDenied(true); return }
-      setPermDenied(false)
       const { items } = await readSmsHistory(99999)
       if (!items.length) return
       const raw = localStorage.getItem('attendance_records')
@@ -93,10 +88,6 @@ export default function AttendancePage() {
     setLoadingAll(true)
     setImportStat(null)
     try {
-      let ok = await checkSmsPermission()
-      if (!ok) ok = await requestSmsPermission()
-      if (!ok) { setPermDenied(true); return }
-      setPermDenied(false)
       const { items, scanned, matched } = await readSmsHistory(99999)
       const raw = localStorage.getItem('attendance_records')
       const recs = raw ? JSON.parse(raw) : {}
@@ -136,12 +127,10 @@ export default function AttendancePage() {
   const allDates  = Object.keys(records).sort().reverse()
   const MONTHS    = Array.from({length:12}, (_,i) => String(i+1).padStart(2,'0'))
 
-  // 년도: 데이터에서 동적 추출 + 기본 연도 보장
   const dataYears = [...new Set(allDates.map(d => d.slice(0,4)))]
   const baseYears = ['2024','2025','2026', CUR_YEAR]
   const YEAR_OPTS = [...new Set([...baseYears, ...dataYears])].sort().reverse()
 
-  // 이력 탭: 선택 년/월 날짜 그룹
   const filteredDates = allDates.filter(d => d.startsWith(selYear + selMon))
   const grouped = filteredDates.map(d => ({
     dateStr: d,
@@ -181,25 +170,6 @@ export default function AttendancePage() {
           </button>
         ))}
       </div>
-
-      {permDenied && (
-        <div style={{ marginBottom:12, padding:'12px 14px', background:'#fee2e2', borderRadius:9 }}>
-          <div style={{ fontSize:12, color:'var(--red)', fontWeight:600, marginBottom:8 }}>
-            SMS 권한이 거부됐습니다. 앱 설정 → 권한에서 SMS를 허용해주세요.
-          </div>
-          <button
-            type="button"
-            onClick={openSmsSettings}
-            style={{
-              padding:'7px 14px', borderRadius:7, border:'none',
-              background:'var(--red)', color:'#fff',
-              fontSize:12, fontWeight:700, cursor:'pointer',
-            }}
-          >
-            앱 설정 열기
-          </button>
-        </div>
-      )}
 
       {/* ── 출석 현황 탭 ── */}
       {tab === 'attend' && (
@@ -252,7 +222,6 @@ export default function AttendancePage() {
             style={{ position:'fixed', inset:0, zIndex:500, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
             <div onClick={e => e.stopPropagation()}
               style={{ width:'100%', maxWidth:430, maxHeight:'80vh', background:'#fff', borderRadius:'18px 18px 0 0', display:'flex', flexDirection:'column', overflow:'hidden' }}>
-              {/* 헤더 */}
               <div style={{ padding:'16px 20px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                 <div>
                   <div style={{ fontSize:17, fontWeight:800, color:'var(--text)' }}>{selectedStudent}</div>
@@ -261,7 +230,6 @@ export default function AttendancePage() {
                 <button type="button" onClick={() => setSelectedStudent(null)}
                   style={{ fontSize:22, background:'none', border:'none', color:'var(--text3)', cursor:'pointer', padding:'4px 8px', lineHeight:1 }}>✕</button>
               </div>
-              {/* 목록 */}
               <div style={{ overflowY:'auto', flex:1, padding:'8px 0' }}>
                 {studentRecords.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text3)', fontSize:14 }}>출석 이력이 없습니다.</div>
@@ -272,7 +240,6 @@ export default function AttendancePage() {
                   </div>
                 ))}
               </div>
-              {/* 닫기 버튼 */}
               <div style={{ padding:'12px 20px', borderTop:'1px solid var(--border)' }}>
                 <button type="button" onClick={() => setSelectedStudent(null)}
                   style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'var(--accent)', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
@@ -288,7 +255,6 @@ export default function AttendancePage() {
       {tab === 'history' && (
         <div>
 
-          {/* 전체 불러오기 버튼 */}
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
             <button type="button" onClick={importAllSms} disabled={loadingAll}
               style={{ flex:1, padding:'12px', borderRadius:10, border:'none',
@@ -301,14 +267,12 @@ export default function AttendancePage() {
             </button>
           </div>
 
-          {/* 갱신 시각 */}
           {lastUpdated && (
             <div style={{ marginBottom:6, fontSize:11, color:'var(--text3)', textAlign:'right' }}>
               마지막 갱신: {lastUpdated.getHours().toString().padStart(2,'0')}:{lastUpdated.getMinutes().toString().padStart(2,'0')}:{lastUpdated.getSeconds().toString().padStart(2,'0')}
             </div>
           )}
 
-          {/* 불러오기 결과 */}
           {importStat && (
             <div style={{ marginBottom:10, padding:'10px 14px', background:'#f0fdf4', borderRadius:9, fontSize:12, color:'#166534' }}>
               <div style={{ fontWeight:700, marginBottom:2 }}>
@@ -321,14 +285,12 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* 전체 저장 이력 요약 (importStat 없을 때도 표시) */}
           {!importStat && totalAllSaved > 0 && (
             <div style={{ marginBottom:10, padding:'8px 14px', background:'#eff6ff', borderRadius:9, fontSize:12, color:'var(--accent)', fontWeight:600 }}>
               저장된 전체 이력: {totalAllSaved}건
             </div>
           )}
 
-          {/* 년/월 드롭다운 */}
           <div style={{ display:'flex', gap:8, marginBottom:14 }}>
             <select value={selYear} onChange={e=>setSelYear(e.target.value)}
               style={{ flex:1, padding:'9px 10px', borderRadius:9, border:'1px solid var(--border)', fontSize:13, background:'#fff', color:'var(--text)' }}>
@@ -340,21 +302,18 @@ export default function AttendancePage() {
             </select>
           </div>
 
-          {/* 월 요약 */}
           {monthTotal > 0 && (
             <div style={{ marginBottom:12, padding:'8px 14px', background:'#eff6ff', borderRadius:9, fontSize:12, color:'var(--accent)', fontWeight:700 }}>
               {selYear}년 {parseInt(selMon)}월 · {filteredDates.length}일 등원 · 총 {monthTotal}건
             </div>
           )}
 
-          {/* SMS 읽는 중 인디케이터 (기록 목록 위에 오버레이하지 않고 따로 표시) */}
           {loadingAll && (
             <div style={{ textAlign:'center', padding:'10px 0', color:'var(--text3)', fontSize:12, marginBottom:8 }}>
               문자 전체를 읽어오는 중... (기존 이력은 아래에서 확인 가능합니다)
             </div>
           )}
 
-          {/* 날짜별 카드 — 로딩 중에도 기존 데이터 표시 */}
           {grouped.length === 0 ? (
             <div style={{ textAlign:'center', padding:'48px 0', color:'var(--text3)', fontSize:14 }}>
               {loadingAll

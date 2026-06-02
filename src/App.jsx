@@ -41,6 +41,7 @@ import DetailPage from './pages/DetailPage'
 import AttendancePage from './pages/AttendancePage'
 import BranchPage from './pages/BranchPage'
 import MemoPage from './pages/MemoPage'
+import SmsReservationPage from './pages/SmsReservationPage'
 import LoginPage from './pages/LoginPage'
 
 import CallBanner from './components/CallBanner'
@@ -187,7 +188,7 @@ export default function App() {
               <button
                 type="button"
                 className="header-btn header-btn-branch"
-                onClick={() => navigate('/branch')}
+                onClick={() => navigate('/sms-reservation')}
               >
                 <span>문자</span>
                 <span>예약</span>
@@ -197,7 +198,7 @@ export default function App() {
           <button type="button" className="header-btn header-btn-logout" onClick={logout}>
             로그아웃
           </button>
-          <button type="button" className="refresh-btn" onClick={load} title="새로고침">
+          <button type="button" className="refresh-btn" onClick={() => window.location.reload()} title="새로고침">
             ↻
           </button>
         </div>
@@ -213,6 +214,7 @@ export default function App() {
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/branch" element={<BranchPage />} />
           <Route path="/memo" element={<MemoPage />} />
+          <Route path="/sms-reservation" element={<SmsReservationPage />} />
           <Route path="/detail/:id" element={<DetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
