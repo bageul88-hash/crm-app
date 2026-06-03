@@ -90,6 +90,13 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete, attend
         <div className="consult-info">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{c.name || '(이름없음)'}</span>
+            {(c.category === '재결재완료' || c.diagResult === '재결재완료') && (
+              <span style={{
+                background: '#4CAF50', color: '#fff',
+                fontSize: 11, padding: '2px 7px', borderRadius: 10,
+                fontWeight: 700, lineHeight: 1,
+              }}>재결재완료</span>
+            )}
             {attendanceCount > 0 && (
               <span
                 style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600, cursor: onAttendanceClick ? 'pointer' : 'default' }}

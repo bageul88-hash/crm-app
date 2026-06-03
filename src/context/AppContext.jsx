@@ -277,19 +277,21 @@ export function AppProvider({ children }) {
       })
   }, [currentUser, silentSync, showSaveSuccess, showSaveError])
 
-  // 낙관적 수정: UI 즉시 반영 → 백그라운드 API → 성공 시 캐시 동기화, 실패 시 롤백
+  // 낙관적 수정: UI 즉시 반영 → 백그라운드 API → 성공 시 서버 동기화, 실패 시 롤백
   const update = useCallback(async data => {
+    const targetId = Number(data.id)
     const payload = {
       ...data,
+      id: targetId,
       branchId: currentUser?.branchId || data.branchId || '',
       branchName: currentUser?.branchName || data.branchName || '',
     }
 
     let originalItem = null
     setConsults(prev => {
-      originalItem = prev.find(c => c.id === data.id)
+      originalItem = prev.find(c => Number(c.id) === targetId)
       const next = prev.map(c =>
-        c.id === data.id
+        Number(c.id) === targetId
           ? { ...c, ...payload, phone: cleanPhone(payload.phone) }
           : c
       )
@@ -298,16 +300,27 @@ export function AppProvider({ children }) {
     })
 
     updateConsult(payload)
-      .then(() => showSaveSuccess('✅ 서버 저장 완료'))
+      .then(async () => {
+        showSaveSuccess('✅ 저장 완료')
+        // 서버 상태를 목록에 즉시 반영
+        try {
+          const { consults: fresh, branchConfig } = await fetchConsults()
+          setConsults(fresh)
+          saveCache(fresh)
+          if (branchConfig && Object.keys(branchConfig).length > 0) {
+            applyBranchConfig(branchConfig)
+          }
+        } catch { /* 동기화 실패 시 낙관적 상태 유지 */ }
+      })
       .catch(err => {
         setConsults(prev => {
-          const rolled = prev.map(c => (c.id === data.id && originalItem ? originalItem : c))
+          const rolled = prev.map(c => (Number(c.id) === targetId && originalItem ? originalItem : c))
           saveCache(rolled)
           return rolled
         })
         showSaveError(`❌ 수정 저장 실패: ${err?.message || '네트워크 오류'}`)
       })
-  }, [currentUser, showSaveSuccess, showSaveError])
+  }, [currentUser, showSaveSuccess, showSaveError, applyBranchConfig])
 
   // 낙관적 삭제: UI 즉시 반영 → 백그라운드 API → 실패 시 복구
   const remove = useCallback(async id => {

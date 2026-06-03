@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import { OPTIONS } from '../api/sheets'
 import SmsModal from '../components/SmsModal'
 import SearchInput from '../components/SearchInput'
+import DatePicker from '../components/DatePicker'
 import { saveContactMemo } from '../hooks/useContacts'
 import dayjs from 'dayjs'
 
@@ -234,11 +235,15 @@ export default function InputPage() {
 
   useEffect(() => {
     const s = location.state || {}
-    if (s.phone || s.hasPhoto) {
+    if (s.phone || s.hasPhoto || s.inquiryDate) {
       setForm(prev => ({
         ...prev,
         ...(s.phone && { phone: cleanPhone(s.phone) }),
         ...(s.hasPhoto && { hasPhoto: s.hasPhoto }),
+        ...(s.inquiryDate && {
+          inquiryDate: s.inquiryDate,
+          inquiryDay: getDay(s.inquiryDate),
+        }),
       }))
     }
   }, [location.state])
@@ -354,11 +359,12 @@ export default function InputPage() {
     }
 
     if (isEdit) {
-      update({ ...payload, id: form.id || id })
+      update({ ...payload, id: Number(form.id || id) })
       saveContactMemo(payload)
         .then(r => !r?.skipped && showContactMsg('✅ 연락처 메모 업데이트 완료'))
         .catch(() => showContactMsg('⚠️ 연락처 저장 실패'))
-      navigate('/', { replace: true })
+      const returnTo = new URLSearchParams(location.search).get('returnTo') || '/'
+      navigate(returnTo, { replace: true })
       return
     }
 
@@ -446,11 +452,10 @@ export default function InputPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div className="form-group">
           <label className="label">문의일</label>
-          <input
-            className="input"
-            type="date"
+          <DatePicker
             value={form.inquiryDate || ''}
-            onChange={e => set('inquiryDate', e.target.value)}
+            onChange={v => set('inquiryDate', v)}
+            placeholder="날짜 선택"
           />
         </div>
 
@@ -473,11 +478,10 @@ export default function InputPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div className="form-group">
           <label className="label">진단예약일</label>
-          <input
-            className="input"
-            type="date"
+          <DatePicker
             value={form.diagDate || ''}
-            onChange={e => set('diagDate', e.target.value)}
+            onChange={v => set('diagDate', v)}
+            placeholder="날짜 선택"
           />
         </div>
 
@@ -532,11 +536,10 @@ export default function InputPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="form-group">
               <label className="label">수업예약일</label>
-              <input
-                className="input"
-                type="date"
+              <DatePicker
                 value={form.lessonDate || ''}
-                onChange={e => set('lessonDate', e.target.value)}
+                onChange={v => set('lessonDate', v)}
+                placeholder="날짜 선택"
               />
             </div>
 

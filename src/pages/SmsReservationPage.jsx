@@ -11,12 +11,7 @@ const DEFAULT_TEMPLATE = `안녕하세요, 참바른글씨입니다. 😊
 const SMS_HISTORY_KEY = 'crm_sms_history'
 
 function isTarget(n) {
-  return n === 20 || (n > 20 && (n - 20) % 24 === 0)
-}
-
-function calcRound(n) {
-  if (n === 20) return 1
-  return (n - 20) / 24 + 1
+  return n >= 20 && n <= 26
 }
 
 function loadSmsHistory() {
@@ -37,7 +32,7 @@ function fmtDateTime(iso) {
 }
 
 export default function SmsReservationPage() {
-  const { currentUser, consults: contextConsults } = useApp()
+  const { currentUser, consults: contextConsults, silentSync } = useApp()
   const navigate = useNavigate()
   const [tab, setTab] = useState('pending')
   const [students, setStudents] = useState([])
@@ -77,13 +72,13 @@ export default function SmsReservationPage() {
       })
     })
 
-    const histSet = new Set(hist.map(h => `${h.studentName}_${h.round}`))
+    // 이미 발송한 학생+총출석횟수 조합으로 중복 제외
+    const histSet = new Set(hist.map(h => `${h.studentName}_${h.totalCount}`))
 
     const result = []
     for (const [name, count] of Object.entries(totals)) {
       if (!isTarget(count)) continue
-      const round = calcRound(count)
-      if (histSet.has(`${name}_${round}`)) continue
+      if (histSet.has(`${name}_${count}`)) continue
 
       // 이름 정규화 매칭 (공백 차이 흡수)
       const nameNorm = normName(name)
@@ -151,7 +146,6 @@ export default function SmsReservationPage() {
         id: `${name}_${count}`,
         name,
         totalCount: count,
-        round,
         phone: rawPhone.replace(/[^0-9]/g, ''),
         phoneDisplay: rawPhone,
         consultId: latestConsult?.id || null,
@@ -159,7 +153,7 @@ export default function SmsReservationPage() {
       })
     }
 
-    result.sort((a, b) => a.round - b.round || a.name.localeCompare(b.name))
+    result.sort((a, b) => a.totalCount - b.totalCount || a.name.localeCompare(b.name))
     console.log(`[문자예약] 필터 완료: 출석대상=${Object.keys(totals).filter(n => isTarget(totals[n])).length}명 → 대기목록=${result.length}명 (CRM=${consults.length}건)`)
     setStudents(result)
     setHistory(hist)
@@ -203,7 +197,6 @@ export default function SmsReservationPage() {
       id: `sms_${Date.now()}_${queueIdx}`,
       studentName: cur.name,
       phone: cur.phone,
-      round: cur.round,
       totalCount: cur.totalCount,
       sentAt: new Date().toISOString(),
     }
@@ -280,9 +273,6 @@ export default function SmsReservationPage() {
           <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 4 }}>{queueIdx + 1}번째 학생</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{cur.name}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#dbeafe', color: '#1d4ed8', fontWeight: 700 }}>
-              {cur.round}회차 재결재
-            </span>
             <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#f3f4f6', color: 'var(--text2)', fontWeight: 600 }}>
               총 {cur.totalCount}회 출석
             </span>
@@ -463,12 +453,6 @@ export default function SmsReservationPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 16, fontWeight: 700 }}>{s.name}</span>
-                          <span style={{
-                            fontSize: 11, padding: '2px 9px', borderRadius: 20,
-                            background: '#dbeafe', color: '#1d4ed8', fontWeight: 700,
-                          }}>
-                            {s.round}회차 재결재
-                          </span>
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
                           총 {s.totalCount}회 출석
@@ -645,7 +629,7 @@ export default function SmsReservationPage() {
                       fontSize: 11, padding: '2px 9px', borderRadius: 20,
                       background: '#d1fae5', color: '#065f46', fontWeight: 700,
                     }}>
-                      {h.round}회차 발송
+                      총 {h.totalCount}회 발송
                     </span>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text3)' }}>
@@ -713,7 +697,7 @@ export default function SmsReservationPage() {
                     <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600, width: 20, textAlign: 'center' }}>{i + 1}</span>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>{s.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>총 {s.totalCount}회 · {s.round}회차</div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>총 {s.totalCount}회 출석</div>
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text2)' }}>

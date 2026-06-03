@@ -317,18 +317,31 @@ class SmsPlugin : Plugin() {
         Log.d("CRM_SMS", "SMS 수신 리스너 등록 완료")
     }
 
-    // SMS inbox에서 학생 이름이 포함된 문자를 찾아 발신자 번호 반환
+    // [참바른글씨] 발신 문자에서 학생 이름으로 전화번호 추출
+    // sent → inbox → all 순서로 검색해서 가장 먼저 찾은 번호 반환
     @PluginMethod
     fun searchPhoneByStudentName(call: PluginCall) {
         val name = call.getString("name") ?: run {
             call.reject("name is required")
             return
         }
+
         val ret = JSObject()
-        var foundPhone = ""
-        try {
+        val foundPhone = searchSmsForPhone(name, "content://sms/sent")
+            ?: searchSmsForPhone(name, "content://sms/inbox")
+            ?: searchSmsForPhone(name, "content://sms")
+            ?: ""
+
+        Log.d("CRM_SMS", "searchPhoneByStudentName($name) → \"$foundPhone\"")
+        ret.put("phone", foundPhone)
+        ret.put("found", foundPhone.isNotEmpty())
+        call.resolve(ret)
+    }
+
+    private fun searchSmsForPhone(name: String, uri: String): String? {
+        return try {
             val cursor = context.contentResolver.query(
-                android.net.Uri.parse("content://sms/inbox"),
+                android.net.Uri.parse(uri),
                 arrayOf("address", "body"),
                 null, null,
                 "date DESC"
@@ -341,22 +354,19 @@ class SmsPlugin : Plugin() {
                     val address = if (addrIdx >= 0) it.getString(addrIdx) ?: "" else ""
                     if (body.contains("[참바른글씨]") && body.contains(name)) {
                         val cleaned = address.replace(Regex("[^0-9]"), "")
-                        if (cleaned.isNotEmpty()) {
-                            foundPhone = if (cleaned.startsWith("82") && cleaned.length == 12)
+                        if (cleaned.length >= 9) {
+                            return@use if (cleaned.startsWith("82") && cleaned.length == 12)
                                 "0" + cleaned.substring(2)
                             else cleaned
-                            break
                         }
                     }
                 }
+                null
             }
-            Log.d("CRM_SMS", "searchPhoneByStudentName($name) → $foundPhone")
         } catch (e: Exception) {
-            Log.e("CRM_SMS", "searchPhoneByStudentName 오류", e)
+            Log.w("CRM_SMS", "searchSmsForPhone($uri) 오류: ${e.message}")
+            null
         }
-        ret.put("phone", foundPhone)
-        ret.put("found", foundPhone.isNotEmpty())
-        call.resolve(ret)
     }
 
     // "[참바른글씨] OOO 학생이 등원하였습니다" 패턴에서 이름 추출

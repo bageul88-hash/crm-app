@@ -43,6 +43,7 @@ export function filterByTab(list, tab) {
   if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
   if (tab === '연결')   return list.filter(c => c.diagResult === '연결')
   if (tab === '가맹')   return list.filter(c => c.diagResult === '가맹' || c.category === '가맹')
+  if (tab === '재결재완료') return list.filter(c => c.diagResult === '재결재완료')
   if (tab === '수업자료') return list.filter(c => c.hasPhoto === '유')
   if (tab === '예약')   return list.filter(c => c.category === '예약' && !DIAG_ONLY_TABS.includes(c.diagResult))
   if (tab === '문의')   return list.filter(c => c.category === '문의' && !['연결', '미등록', '가맹', '크레임'].includes(c.diagResult))
@@ -69,7 +70,7 @@ export const OPTIONS = {
     '오후 8:00', '오후 8:30',
     '오후 9:00',
   ],
-  diagResult: ['미등록', '등록', '연결', '펑크', '크레임', '환불', '가맹'],
+  diagResult: ['미등록', '등록', '재결재완료', '연결', '펑크', '크레임', '환불', '가맹'],
   relation: ['어머니', '아버지', '일반남', '일반여', '할머니', '할아버지', '직접입력'],
 }
 
