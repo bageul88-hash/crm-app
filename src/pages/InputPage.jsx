@@ -613,8 +613,9 @@ export default function InputPage() {
         <SmsModal
           consult={smsConsult}
           onClose={() => {
+            const targetTab = smsConsult?.category || '전체'
             setSmsConsult(null)
-            navigate('/')
+            navigate('/', { state: { tab: targetTab }, replace: true })
           }}
         />
       )}

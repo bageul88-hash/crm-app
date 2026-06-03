@@ -137,6 +137,14 @@ export default function ListPage() {
   const [tab, setTab] = useState('전체')         // 현재 필터 탭
   const [selectedTab, setSelectedTab] = useState(null)   // 1클릭 선택(파란 테두리)
   const [chartTab, setChartTab] = useState(null)          // 2클릭 활성(하늘색 + 차트)
+
+  // 신규 등록 후 해당 구분 탭으로 자동 이동
+  useEffect(() => {
+    const navTab = location.state?.tab
+    if (!navTab) return
+    setTab(navTab)
+    if (SUB_TABS.includes(navTab)) setShowSubTabs(true)
+  }, [location.key])
   const [search, setSearch] = useState('')
   const [inputVal, setInputVal] = useState('')
   const [showSubTabs, setShowSubTabs] = useState(false)

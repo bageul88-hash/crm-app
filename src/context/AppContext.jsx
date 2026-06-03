@@ -263,9 +263,16 @@ export function AppProvider({ children }) {
     })
 
     addConsult(payload)
-      .then(() => {
-        showSaveSuccess('✅ 서버 저장 완료')
-        silentSync()
+      .then(async () => {
+        showSaveSuccess('✅ 저장 완료')
+        try {
+          const { consults: fresh, branchConfig } = await fetchConsults()
+          setConsults(fresh)
+          saveCache(fresh)
+          if (branchConfig && Object.keys(branchConfig).length > 0) {
+            applyBranchConfig(branchConfig)
+          }
+        } catch { /* 동기화 실패 시 낙관적 상태 유지 */ }
       })
       .catch(() => {
         setConsults(prev => {
@@ -275,7 +282,7 @@ export function AppProvider({ children }) {
         })
         showSaveError('저장에 실패했습니다. 다시 시도해주세요.')
       })
-  }, [currentUser, silentSync, showSaveSuccess, showSaveError])
+  }, [currentUser, showSaveSuccess, showSaveError, applyBranchConfig])
 
   // 낙관적 수정: UI 즉시 반영 → 백그라운드 API → 성공 시 서버 동기화, 실패 시 롤백
   const update = useCallback(async data => {
