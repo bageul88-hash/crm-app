@@ -107,21 +107,24 @@ export default function SmsReservationPage() {
         ? allMatches.reduce((best, c) => Number(c.id) > Number(best.id) ? c : best)
         : null
 
-      // 수업종료 필터: 직접 매칭된 경우
+      // 수업종료 또는 재결재완료 필터: 직접 매칭된 경우
       if (latestConsult?.category === '수업종료') {
         console.log('[수업종료 제외]', name, `→ id=${latestConsult.id} category=${latestConsult.category}`)
         continue
       }
+      if (latestConsult?.diagResult === '재결재완료') {
+        console.log('[재결재완료 제외]', name, `→ id=${latestConsult.id} diagResult=${latestConsult.diagResult}`)
+        continue
+      }
 
-      // 매칭 실패 시 폭넓은 이름 검색으로 수업종료 여부 재확인
-      // (이름 불일치로 latestConsult=null이어도 수업종료 학생이면 제외)
+      // 매칭 실패 시 폭넓은 이름 검색으로 수업종료/재결재완료 여부 재확인
       if (!latestConsult && consults.length > 0) {
         const hasEnded = consults.some(c =>
-          c.category === '수업종료' &&
+          (c.category === '수업종료' || c.diagResult === '재결재완료') &&
           (normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name)))
         )
         if (hasEnded) {
-          console.log('[수업종료 제외 - 폭넓은 매칭]', name)
+          console.log('[수업종료/재결재완료 제외 - 폭넓은 매칭]', name)
           continue
         }
       }
@@ -380,7 +383,7 @@ export default function SmsReservationPage() {
             <div>
               <div style={{ fontSize: 16, fontWeight: 800 }}>수업료 재결재 요청</div>
               <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-                20회, 44회, 68회... 도달 학생 자동 조회
+                총 출석 20회 ~ 26회 해당 학생 자동 조회
               </div>
             </div>
             <button
