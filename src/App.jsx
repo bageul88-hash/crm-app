@@ -48,6 +48,7 @@ import CallBanner from './components/CallBanner'
 import BottomNav from './components/BottomNav'
 import { useSmsAttendance, useMmsReceived, normalizeMmsPhone } from './hooks/useSmsAttendance'
 import { useUpdateCheck } from './hooks/useUpdateCheck'
+import { useFirebaseAttendanceListener } from './hooks/useFirebaseAttendanceListener'
 
 export default function App() {
   const { load, silentSync, currentUser, logout, saveError, saveSuccess, branchOverrides, consults } = useApp()
@@ -124,6 +125,7 @@ export default function App() {
   }, [])
 
   useSmsAttendance(handleSmsAttendance)
+  useFirebaseAttendanceListener()
 
   const handleMmsReceived = useCallback((rawPhone) => {
     const phone = normalizeMmsPhone(rawPhone)
