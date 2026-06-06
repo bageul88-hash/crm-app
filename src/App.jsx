@@ -41,6 +41,7 @@ import DetailPage from './pages/DetailPage'
 import AttendancePage from './pages/AttendancePage'
 import BranchPage from './pages/BranchPage'
 import MemoPage from './pages/MemoPage'
+import ApprovalSMSPage from './pages/ApprovalSMSPage'
 import SmsReservationPage from './pages/SmsReservationPage'
 import LoginPage from './pages/LoginPage'
 
@@ -182,10 +183,10 @@ export default function App() {
               <button
                 type="button"
                 className="header-btn header-btn-branch"
-                onClick={() => navigate('/memo')}
+                onClick={() => navigate('/approval')}
               >
-                <span>본사</span>
-                <span>메모</span>
+                <span>결재</span>
+                <span>문자</span>
               </button>
               <button
                 type="button"
@@ -216,6 +217,7 @@ export default function App() {
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/branch" element={<BranchPage />} />
           <Route path="/memo" element={<MemoPage />} />
+          <Route path="/approval" element={<ApprovalSMSPage />} />
           <Route path="/sms-reservation" element={<SmsReservationPage />} />
           <Route path="/detail/:id" element={<DetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
