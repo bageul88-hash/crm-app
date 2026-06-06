@@ -1,12 +1,14 @@
 import express from 'express'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import attendanceRouter from './routes/attendance.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = process.env.PORT || 3000
 
 app.use(express.json({ limit: '32kb' }))
+app.use(attendanceRouter)
 
 // 텔레그램 알림 프록시 — 토큰은 Render 환경변수(TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID)에서 읽음
 app.post('/api/telegram-notify', async (req, res) => {
