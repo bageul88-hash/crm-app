@@ -22,6 +22,23 @@ function normName(s) {
   return String(s ?? '').replace(/\s+/g, '').toLowerCase()
 }
 
+const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
+
+function fmtAttendDate(dateKey) {
+  const y = +dateKey.slice(0, 4)
+  const m = parseInt(dateKey.slice(4, 6))
+  const d = parseInt(dateKey.slice(6, 8))
+  return `${y}년 ${m}월 ${d}일 (${DAY_KR[new Date(y, m - 1, d).getDay()]})`
+}
+
+function fmtAttendTime(timeStr) {
+  if (!timeStr) return ''
+  const [h, min] = timeStr.split(':').map(Number)
+  if (isNaN(h)) return ''
+  const ampm = h < 12 ? '오전' : '오후'
+  return `${ampm} ${h % 12 || 12}:${String(min).padStart(2, '0')}`
+}
+
 function fmtDateTime(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -43,6 +60,7 @@ export default function SmsReservationPage() {
   const [queue, setQueue] = useState([])
   const [queueIdx, setQueueIdx] = useState(0)
   const [smsOpened, setSmsOpened] = useState(false)
+  const [attendanceModal, setAttendanceModal] = useState(null) // student | null
 
   const refresh = useCallback(() => {
     const records = (() => {
@@ -145,6 +163,21 @@ export default function SmsReservationPage() {
             .slice(0, 10)
         : null
 
+      // 해당 학생의 출석 날짜/시간 수집 (최신순)
+      const attendanceDates = []
+      for (const [dateKey, list] of Object.entries(records)) {
+        ;(list || []).forEach(entry => {
+          const entryName = typeof entry === 'string' ? entry : entry?.name
+          if (entryName === name) {
+            attendanceDates.push({
+              dateKey,
+              time: typeof entry === 'object' ? (entry?.time || '') : '',
+            })
+          }
+        })
+      }
+      attendanceDates.sort((a, b) => b.dateKey.localeCompare(a.dateKey))
+
       result.push({
         id: `${name}_${count}`,
         name,
@@ -153,6 +186,7 @@ export default function SmsReservationPage() {
         phoneDisplay: rawPhone,
         consultId: latestConsult?.id || null,
         firstSmsDate,
+        attendanceDates,
       })
     }
 
@@ -457,7 +491,14 @@ export default function SmsReservationPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 16, fontWeight: 700 }}>{s.name}</span>
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
+                        <div
+                          onClick={e => { e.stopPropagation(); setAttendanceModal(s) }}
+                          style={{
+                            fontSize: 12, color: 'var(--accent)', marginTop: 3,
+                            cursor: 'pointer', textDecoration: 'underline', fontWeight: 600,
+                            display: 'inline-block',
+                          }}
+                        >
                           총 {s.totalCount}회 출석
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
@@ -465,30 +506,8 @@ export default function SmsReservationPage() {
                         </div>
                       </div>
 
-                      {/* 버튼 영역 */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
-                        {/* 신규 상담 등록 버튼 */}
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation()
-                            navigate('/input', {
-                              state: {
-                                phone: s.phone,
-                                inquiryDate: s.firstSmsDate || '',
-                              },
-                            })
-                          }}
-                          style={{
-                            padding: '6px 11px', borderRadius: 8,
-                            border: '1px solid #bfdbfe', background: '#eff6ff',
-                            color: '#1d4ed8', fontSize: 12, fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          신규
-                        </button>
-
+                      {/* 버튼 영역 — 수정 버튼만 */}
+                      <div style={{ flexShrink: 0 }}>
                         {/* 기존 상담 수정 버튼 */}
                         <button
                           type="button"
@@ -722,6 +741,74 @@ export default function SmsReservationPage() {
             >
               확정 발송 →
             </button>
+          </div>
+        </div>
+      )}
+      {/* ── 출석 날짜 전체화면 모달 ── */}
+      {attendanceModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: '#fff',
+          zIndex: 9999, display: 'flex', flexDirection: 'column',
+        }}>
+          {/* 헤더 */}
+          <div style={{
+            padding: '20px 20px 16px',
+            borderBottom: '1px solid var(--border)',
+            position: 'relative',
+          }}>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>{attendanceModal.name}</div>
+            <div style={{ fontSize: 14, color: 'var(--text2)', marginTop: 4 }}>
+              총 출석{' '}
+              <span style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                {attendanceModal.totalCount}
+              </span>회
+            </div>
+            <button
+              type="button"
+              onClick={() => setAttendanceModal(null)}
+              style={{
+                position: 'absolute', top: 16, right: 16,
+                background: 'none', border: 'none',
+                fontSize: 22, cursor: 'pointer', color: 'var(--text3)',
+                lineHeight: 1,
+              }}
+            >✕</button>
+          </div>
+
+          {/* 출석 목록 */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
+            {attendanceModal.attendanceDates?.length > 0 ? (
+              attendanceModal.attendanceDates.map((rec, idx) => (
+                <div key={idx} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '14px 0', borderBottom: '1px solid #f0f0f0',
+                }}>
+                  <span style={{ fontSize: 15, color: 'var(--text)' }}>
+                    {fmtAttendDate(rec.dateKey)}
+                  </span>
+                  <span style={{ fontSize: 14, color: 'var(--text2)' }}>
+                    {fmtAttendTime(rec.time)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text3)' }}>
+                날짜 정보가 없습니다
+              </div>
+            )}
+          </div>
+
+          {/* 닫기 버튼 */}
+          <div style={{ padding: '16px 20px' }}>
+            <button
+              type="button"
+              onClick={() => setAttendanceModal(null)}
+              style={{
+                width: '100%', padding: 16, borderRadius: 12, border: 'none',
+                background: 'var(--accent)', color: '#fff',
+                fontSize: 16, fontWeight: 700, cursor: 'pointer',
+              }}
+            >닫기</button>
           </div>
         </div>
       )}
