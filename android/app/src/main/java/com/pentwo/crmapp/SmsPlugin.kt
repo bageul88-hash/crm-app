@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.provider.Telephony
+import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
 import android.util.Log
 import com.getcapacitor.JSArray
@@ -32,7 +33,8 @@ import java.util.Locale
     name = "SmsPlugin",
     permissions = [
         Permission(strings = [Manifest.permission.READ_SMS],     alias = "readSms"),
-        Permission(strings = [Manifest.permission.RECEIVE_SMS],  alias = "receiveSms")
+        Permission(strings = [Manifest.permission.RECEIVE_SMS],  alias = "receiveSms"),
+        Permission(strings = [Manifest.permission.SEND_SMS],     alias = "sendSms")
     ]
 )
 class SmsPlugin : Plugin() {
@@ -366,6 +368,62 @@ class SmsPlugin : Plugin() {
         } catch (e: Exception) {
             Log.w("CRM_SMS", "searchSmsForPhone($uri) 오류: ${e.message}")
             null
+        }
+    }
+
+    // SEND_SMS 런타임 권한 확인 및 요청
+    @PluginMethod
+    fun requestSendSmsPermission(call: PluginCall) {
+        val alreadyGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.SEND_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (alreadyGranted) {
+            val ret = JSObject()
+            ret.put("granted", true)
+            call.resolve(ret)
+            return
+        }
+        requestPermissionForAlias("sendSms", call, "sendSmsPermissionCallback")
+    }
+
+    @PermissionCallback
+    private fun sendSmsPermissionCallback(call: PluginCall) {
+        val granted = getPermissionState("sendSms") == PermissionState.GRANTED
+        Log.d("CRM_SMS", "SEND_SMS 권한 요청 결과: $granted")
+        val ret = JSObject()
+        ret.put("granted", granted)
+        call.resolve(ret)
+    }
+
+    // 학부모에게 자동 출석 알림 문자 발송
+    @PluginMethod
+    fun sendSms(call: PluginCall) {
+        val phone = call.getString("phone") ?: run {
+            call.reject("phone is required")
+            return
+        }
+        val body = call.getString("body") ?: run {
+            call.reject("body is required")
+            return
+        }
+        try {
+            val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                activity.getSystemService(SmsManager::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                SmsManager.getDefault()
+            }
+            val parts = smsManager.divideMessage(body)
+            if (parts.size == 1) {
+                smsManager.sendTextMessage(phone, null, body, null, null)
+            } else {
+                smsManager.sendMultipartTextMessage(phone, null, parts, null, null)
+            }
+            Log.d("CRM_SMS", "학부모 문자 발송 완료: $phone")
+            call.resolve()
+        } catch (e: Exception) {
+            Log.e("CRM_SMS", "학부모 문자 발송 실패: ${e.message}")
+            call.reject("sendSms 실패: ${e.message}")
         }
     }
 

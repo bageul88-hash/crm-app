@@ -40,6 +40,11 @@ export function useFirebaseAttendanceListener() {
   const unsubRef = useRef(null)
 
   useEffect(() => {
+    // SEND_SMS 런타임 권한 요청 (Android 6+ 필수 — 실패해도 리스너는 계속 등록)
+    SmsPlugin.requestSendSmsPermission()
+      .then(r => console.log('[AutoSMS] SEND_SMS 권한:', r?.granted))
+      .catch(() => {})
+
     const attendancePath = `attendance/branch_pentwo/${dateStr}`
     const attendanceRef  = ref(db, attendancePath)
 
