@@ -66,9 +66,18 @@ export function useFirebaseAttendanceListener() {
         // 이미 발송한 항목 → 무시 (중복 방지)
         if (sentRef.current.has(id)) return
 
-        const { studentName, parentPhone, time } = data
+        // 공기계는 'name' 필드로 저장, CRM 자체 저장은 'studentName' — 둘 다 지원
+        const studentName = data.name || data.studentName
+        const { parentPhone, time } = data
 
-        // 부모 전화번호 없으면 발송 안 함
+        if (!studentName) return
+
+        // AttendancePage 오늘 출석 현황 실시간 반영
+        window.dispatchEvent(new CustomEvent('smsAttendance', {
+          detail: { studentName, time: time || null, phone: parentPhone || null }
+        }))
+
+        // 부모 전화번호 없으면 SMS 발송 안 함
         if (!parentPhone) {
           console.log(`[AutoSMS] ${studentName} — parentPhone 없음, 건너뜀`)
           return
