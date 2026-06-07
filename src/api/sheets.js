@@ -3,29 +3,29 @@ export const APPS_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbxNjBhQIGO3d-Q7aLnjyL3wi6GjXNLmAWeHCoKILd_McfT81W9XHCL5rnTL7hJ-nYtx/exec'
   
 
-// 실제 시트 열 순서
+// 실제 시트 열 순서 (A=0 ~ T=19)
+// A~P(0~15) 고정, Q~T(16~19) 추가 열
 export const FIELD_MAP = {
-  category: 0,
-  inquiryDate: 1,
-  inquiryDay: 2,
-  age: 3,
-  gender: 4,
-  name: 5,
-  diagDate: 6,
-  diagDay: 7,
-  diagTime: 8,
-  diagResult: 9,
-  relation: 10,
-  feature: 11,
-  phone: 12,
-  source: 13,
-  savedAt: 14,
-  branchId: 15,
-  branchName: 16,
-  lessonDate: 17,
-  lessonDay: 18,
-  lessonTime: 19,
-  hasPhoto: 20,
+  category: 0,    // A 구분
+  inquiryDate: 1, // B 문의일
+  inquiryDay: 2,  // C 문의요일
+  age: 3,         // D 나이
+  gender: 4,      // E 남여
+  name: 5,        // F 이름
+  diagDate: 6,    // G 진단예약일
+  diagDay: 7,     // H 진단요일
+  diagTime: 8,    // I 진단예약시간
+  diagResult: 9,  // J 진단결과
+  relation: 10,   // K 관계
+  feature: 11,    // L 특징
+  phone: 12,      // M 전화번호
+  source: 13,     // N 원본
+  savedAt: 14,    // O 저장시각
+  branchId: 15,   // P branchId
+  hasPhoto: 16,   // Q 수업자료
+  lessonDate: 17, // R 수업예약일
+  lessonDay: 18,  // S 수업요일
+  lessonTime: 19, // T 수업예약시간
 }
 
 export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '핑크', '환불', '미등록', '연결', '가맹']
