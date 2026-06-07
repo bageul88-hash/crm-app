@@ -3,8 +3,8 @@ export const APPS_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbxNjBhQIGO3d-Q7aLnjyL3wi6GjXNLmAWeHCoKILd_McfT81W9XHCL5rnTL7hJ-nYtx/exec'
   
 
-// 실제 시트 열 순서 (A=0 ~ T=19)
-// A~P(0~15) 고정, Q~T(16~19) 추가 열
+// 실제 시트 열 순서 (A=0 ~ U=20)
+// A~P(0~15) 고정, Q~U(16~20) 추가 열 — 운영 시트 "상담DB" 기준
 export const FIELD_MAP = {
   category: 0,    // A 구분
   inquiryDate: 1, // B 문의일
@@ -26,6 +26,7 @@ export const FIELD_MAP = {
   lessonDate: 17, // R 수업예약일
   lessonDay: 18,  // S 수업요일
   lessonTime: 19, // T 수업예약시간
+  branchName: 20, // U branchName
 }
 
 export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업종료', '핑크', '환불', '미등록', '연결', '가맹']
