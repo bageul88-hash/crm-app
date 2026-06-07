@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+﻿import { useEffect, useRef } from 'react'
 import { ref, get, onChildAdded } from 'firebase/database'
 import { registerPlugin } from '@capacitor/core'
 import { db } from '../firebase'
@@ -72,9 +72,9 @@ export function useFirebaseAttendanceListener() {
 
         if (!studentName) return
 
-        // AttendancePage 오늘 출석 현황 실시간 반영
+        // AttendancePage 오늘 출석 현황 실시간 반영 (firebaseId 포함 → 삭제 기능용)
         window.dispatchEvent(new CustomEvent('smsAttendance', {
-          detail: { studentName, time: time || null, phone: parentPhone || null }
+          detail: { studentName, time: time || null, phone: parentPhone || null, firebaseId: id }
         }))
 
         // 부모 전화번호 없으면 SMS 발송 안 함

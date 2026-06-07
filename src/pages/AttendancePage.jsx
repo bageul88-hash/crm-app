@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { ref as dbRef, remove } from 'firebase/database'
+import { db } from '../firebase'
 import { readSmsHistory } from '../hooks/useSmsAttendance'
 import SearchInput from '../components/SearchInput'
+import { handleStudentArrival } from '../api/firebaseAttendance'
 
 const TODAY     = new Date()
 const TODAY_STR = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
+const TODAY_HYPHEN = `${TODAY.getFullYear()}-${String(TODAY.getMonth()+1).padStart(2,'0')}-${String(TODAY.getDate()).padStart(2,'0')}`
 const TODAY_LBL = `${TODAY.getFullYear()}년 ${TODAY.getMonth()+1}월 ${TODAY.getDate()}일 (${['일','월','화','수','목','금','토'][TODAY.getDay()]})`
 const DAYS_KR   = ['일','월','화','수','목','금','토']
 const CUR_YEAR  = String(TODAY.getFullYear())
@@ -35,7 +39,9 @@ export default function AttendancePage() {
   const [importStat, setImportStat]   = useState(null)  // { total, added, scanned, matched, totalSaved }
   const [lastUpdated, setLastUpdated] = useState(null)
   const [selectedStudent, setSelectedStudent] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)   // 삭제 확인 대상 entry
   const lockRef = useRef(false)
+  const pressTimer = useRef(null)
 
   // 초기 로컬스토리지 로드
   useEffect(() => {
@@ -43,15 +49,22 @@ export default function AttendancePage() {
     if (saved) setRecords(JSON.parse(saved))
   }, [])
 
-  // 실시간 SMS 수신 → 즉시 반영
+  // 실시간 SMS 수신 → localStorage + Firebase 동시 저장
   useEffect(() => {
     const handler = (e) => {
-      const { studentName, time, phone } = e.detail
+      const { studentName, time, phone, firebaseId } = e.detail
       setRecords(prev => {
         const next = { ...prev }
         if (!hasEntry(next[TODAY_STR], studentName)) {
-          next[TODAY_STR] = [...(next[TODAY_STR] || []), { name: studentName, time: time || null, phone: phone || null }]
+          next[TODAY_STR] = [...(next[TODAY_STR] || []), {
+            name: studentName,
+            time: time || null,
+            phone: phone || null,
+            firebaseId: firebaseId || null,
+          }]
           localStorage.setItem('attendance_records', JSON.stringify(next))
+          // Firebase에도 동시 저장 (실패해도 localStorage는 유지)
+          handleStudentArrival(studentName, time || null, phone || null)
         }
         return next
       })
@@ -119,6 +132,58 @@ export default function AttendancePage() {
     return () => clearInterval(timer)
   }, [tab, importAllSms])
 
+  // ── 출석 삭제 ──
+  const startPress = useCallback((entry) => {
+    pressTimer.current = setTimeout(() => setDeleteTarget(entry), 600)
+  }, [])
+  const endPress = useCallback(() => {
+    clearTimeout(pressTimer.current)
+  }, [])
+
+  const handleDeleteConfirm = useCallback(async () => {
+    const entry = deleteTarget
+    if (!entry) return
+    setDeleteTarget(null)
+
+    // localStorage에서 제거
+    setRecords(prev => {
+      const next = { ...prev }
+      const list = next[TODAY_STR] || []
+      const idx = list.findIndex(r => {
+        const e = toEntry(r)
+        return entry.firebaseId && e.firebaseId
+          ? e.firebaseId === entry.firebaseId
+          : e.name === entry.name
+      })
+      if (idx !== -1) {
+        next[TODAY_STR] = [...list.slice(0, idx), ...list.slice(idx + 1)]
+        localStorage.setItem('attendance_records', JSON.stringify(next))
+      }
+      return next
+    })
+
+    // sentIds에서 제거 → 같은 학생 재출석 가능
+    if (entry.firebaseId) {
+      try {
+        const sentKey = `attendance_sms_sent_${TODAY_HYPHEN}`
+        const raw = localStorage.getItem(sentKey)
+        if (raw) {
+          const ids = new Set(JSON.parse(raw))
+          ids.delete(entry.firebaseId)
+          localStorage.setItem(sentKey, JSON.stringify([...ids]))
+        }
+      } catch {}
+
+      // Firebase에서 삭제
+      try {
+        await remove(dbRef(db, `attendance/branch_pentwo/${TODAY_HYPHEN}/${entry.firebaseId}`))
+        console.log(`[Delete] Firebase 삭제 완료: ${entry.name}`)
+      } catch (err) {
+        console.error('[Delete] Firebase 삭제 실패:', err?.message)
+      }
+    }
+  }, [deleteTarget])
+
   // 파생 데이터
   const searchQ = search.trim().toLowerCase()
   const matchName = (name) => !searchQ || String(name || '').toLowerCase().includes(searchQ)
@@ -184,15 +249,26 @@ export default function AttendancePage() {
           <div style={{ borderRadius:10, border:'1px solid var(--border)', overflow:'hidden' }}>
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
-                <tr><th style={TH}>이름</th><th style={TH}>등원시간</th></tr>
+                <tr>
+                  <th style={TH}>이름</th>
+                  <th style={TH}>등원시간</th>
+                  <th style={{ ...TH, width:36, textAlign:'center' }}></th>
+                </tr>
               </thead>
               <tbody>
                 {todayList.length === 0
-                  ? <tr><td colSpan={2} style={{ padding:'32px 16px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                  ? <tr><td colSpan={3} style={{ padding:'32px 16px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
                       {loadingToday ? 'SMS를 읽어오는 중...' : '오늘 등원한 학생이 없습니다.'}
                     </td></tr>
                   : todayList.map((e,i) => (
-                    <tr key={i}>
+                    <tr key={i}
+                      onMouseDown={() => startPress(e)}
+                      onMouseUp={endPress}
+                      onMouseLeave={endPress}
+                      onTouchStart={() => startPress(e)}
+                      onTouchEnd={endPress}
+                      style={{ userSelect:'none' }}
+                    >
                       <td style={td()}>
                         <span style={{ marginRight:6 }}>{e.name}</span>
                         <span onClick={() => setSelectedStudent(e.name)}
@@ -201,6 +277,19 @@ export default function AttendancePage() {
                         </span>
                       </td>
                       <td style={td({ color:'var(--text2)' })}>{fmtTime(e.time)}</td>
+                      <td style={td({ textAlign:'center', padding:'4px' })}>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(e)}
+                          style={{
+                            width:26, height:26, borderRadius:'50%', border:'none',
+                            background:'#fee2e2', color:'#dc2626',
+                            fontSize:13, fontWeight:700, cursor:'pointer',
+                            display:'inline-flex', alignItems:'center', justifyContent:'center',
+                            lineHeight:1,
+                          }}
+                        >✕</button>
+                      </td>
                     </tr>
                   ))
                 }
@@ -250,6 +339,44 @@ export default function AttendancePage() {
           </div>
         )
       })()}
+
+      {/* ── 삭제 확인 모달 ── */}
+      {deleteTarget && (
+        <div
+          onClick={() => setDeleteTarget(null)}
+          style={{ position:'fixed', inset:0, zIndex:600, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width:'80%', maxWidth:320, background:'#fff', borderRadius:18, padding:'28px 24px 20px', textAlign:'center' }}
+          >
+            <div style={{ fontSize:28, marginBottom:10 }}>🗑️</div>
+            <div style={{ fontSize:17, fontWeight:800, color:'var(--text)', marginBottom:6 }}>
+              {deleteTarget.name} 학생
+            </div>
+            <div style={{ fontSize:14, color:'var(--text2)', marginBottom:24 }}>
+              오늘 출석 기록을 삭제하시겠습니까?<br />
+              <span style={{ fontSize:12, color:'var(--text3)' }}>Firebase에서도 함께 삭제됩니다.</span>
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                style={{ flex:1, padding:'12px', borderRadius:10, border:'none', background:'#f3f4f6', color:'var(--text2)', fontSize:15, fontWeight:600, cursor:'pointer' }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                style={{ flex:1, padding:'12px', borderRadius:10, border:'none', background:'#dc2626', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 출석 이력 탭 ── */}
       {tab === 'history' && (
