@@ -412,7 +412,7 @@ export default function SmsReservationPage() {
       {/* ── 대기 목록 탭 ── */}
       {tab === 'pending' && (
         <div style={{ padding: 16 }}>
-          {/* 제목 + 새로고침 */}
+          {/* 제목 + 불러오기 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 800 }}>수업료 재결재 요청</div>
@@ -425,11 +425,11 @@ export default function SmsReservationPage() {
               onClick={() => { silentSync(); refresh() }}
               style={{
                 fontSize: 13, padding: '7px 13px', borderRadius: 9,
-                border: '1px solid var(--border)', background: '#f3f4f6',
-                color: 'var(--text2)', cursor: 'pointer', fontWeight: 600,
+                border: '1px solid var(--accent)', background: 'rgba(79,126,248,0.08)',
+                color: 'var(--accent)', cursor: 'pointer', fontWeight: 700,
               }}
             >
-              ↻ 새로고침
+              불러오기
             </button>
           </div>
 
@@ -506,77 +506,111 @@ export default function SmsReservationPage() {
                         </div>
                       </div>
 
-                      {/* 버튼 영역 — 수정 버튼만 */}
-                      <div style={{ flexShrink: 0 }}>
-                        {/* 기존 상담 수정 버튼 */}
+                      {/* 버튼 영역 — 문자보내기 / 재결재완료 / 수정 */}
+                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
+                        {/* 문자보내기 */}
                         <button
                           type="button"
-                          onClick={async e => {
+                          onClick={e => {
                             e.stopPropagation()
-
-                            // 전화번호가 없으면 SMS inbox에서 자동 검색
-                            let resolvedPhone = s.phone
-                            if (!resolvedPhone) {
-                              const { phone: smsPhone, found } =
-                                await searchPhoneByStudentName(s.name)
-                              if (found) resolvedPhone = smsPhone
-                            }
-
-                            // 상담 수정 페이지로 이동 (phone 있으면 state로 전달)
-                            const goEdit = (id) => {
-                              const extra = resolvedPhone && resolvedPhone !== s.phone
-                                ? { state: { phone: resolvedPhone } }
-                                : undefined
-                              navigate(`/input/${id}?returnTo=/sms-reservation`, extra)
-                            }
-
-                            // 1순위: 이미 찾아둔 consultId
-                            if (s.consultId) {
-                              goEdit(s.consultId)
-                              return
-                            }
-
-                            // 2순위: contextConsults에서 런타임 검색
-                            //   - 정확히 일치 (normName)
-                            //   - 이름 포함 (contains)
-                            //   - 전화번호 일치
-                            const nameNorm = normName(s.name)
-                            const phone = resolvedPhone
-                            console.log('[수정] 상담 검색 시작:', { name: s.name, nameNorm, phone, consultsCount: contextConsults.length })
-
-                            const found =
-                              contextConsults.find(c => normName(c.name) === nameNorm) ||
-                              contextConsults.find(c => normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name))) ||
-                              (phone && contextConsults.find(c =>
-                                String(c.phone || '').replace(/[^0-9]/g, '') === phone
-                              ))
-
-                            console.log('[수정] 검색 결과:', found ? `id=${found.id} name=${found.name}` : '없음')
-
-                            if (found) {
-                              goEdit(found.id)
-                              return
-                            }
-
-                            // 3순위: 상담 없음 → 신규 등록 폼으로 이동 (phone·이름 pre-fill)
-                            // 팝업 대신 바로 이동해서 직접 입력 가능하게
-                            console.log('[수정] 기존 상담 없음 → 신규 등록 폼으로 이동')
-                            navigate('/input', {
-                              state: {
-                                phone: resolvedPhone || '',
-                                inquiryDate: s.firstSmsDate || '',
-                              },
-                            })
+                            if (!s.phone) { alert('전화번호가 없습니다.'); return }
+                            const body = template
+                              .replace(/{학생이름}/g, s.name)
+                              .replace(/{N}/g, s.totalCount)
+                            window.location.href = `sms:${s.phone}?body=${encodeURIComponent(body)}`
                           }}
                           style={{
-                            padding: '6px 11px', borderRadius: 8,
-                            border: '1px solid var(--border)', background: '#f3f4f6',
-                            color: 'var(--text2)', fontSize: 12, fontWeight: 600,
-                            cursor: 'pointer',
+                            padding: '6px 14px', borderRadius: 8,
+                            border: 'none', background: 'var(--accent)',
+                            color: '#fff', fontSize: 12, fontWeight: 700,
+                            cursor: 'pointer', whiteSpace: 'nowrap',
                           }}
                         >
-                          수정
+                          문자보내기
                         </button>
+                        {/* 재결재완료 + 수정 */}
+                        <div style={{ display: 'flex', gap: 5 }}>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation()
+                              const newEntry = {
+                                id: `done_${Date.now()}`,
+                                studentName: s.name,
+                                phone: s.phone,
+                                totalCount: s.totalCount,
+                                sentAt: new Date().toISOString(),
+                              }
+                              const updated = [...history, newEntry]
+                              try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+                              setHistory(updated)
+                              setStudents(prev => prev.filter(st => st.id !== s.id))
+                            }}
+                            style={{
+                              padding: '6px 10px', borderRadius: 8,
+                              border: '1px solid #d1d5db', background: '#f3f4f6',
+                              color: 'var(--text3)', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}
+                          >
+                            재결재완료
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async e => {
+                              e.stopPropagation()
+
+                              let resolvedPhone = s.phone
+                              if (!resolvedPhone) {
+                                const { phone: smsPhone, found } =
+                                  await searchPhoneByStudentName(s.name)
+                                if (found) resolvedPhone = smsPhone
+                              }
+
+                              const goEdit = (id) => {
+                                const extra = resolvedPhone && resolvedPhone !== s.phone
+                                  ? { state: { phone: resolvedPhone } }
+                                  : undefined
+                                navigate(`/input/${id}?returnTo=/sms-reservation`, extra)
+                              }
+
+                              if (s.consultId) {
+                                goEdit(s.consultId)
+                                return
+                              }
+
+                              const nameNorm = normName(s.name)
+                              const phone = resolvedPhone
+
+                              const found =
+                                contextConsults.find(c => normName(c.name) === nameNorm) ||
+                                contextConsults.find(c => normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name))) ||
+                                (phone && contextConsults.find(c =>
+                                  String(c.phone || '').replace(/[^0-9]/g, '') === phone
+                                ))
+
+                              if (found) {
+                                goEdit(found.id)
+                                return
+                              }
+
+                              navigate('/input', {
+                                state: {
+                                  phone: resolvedPhone || '',
+                                  inquiryDate: s.firstSmsDate || '',
+                                },
+                              })
+                            }}
+                            style={{
+                              padding: '6px 10px', borderRadius: 8,
+                              border: '1px solid var(--border)', background: '#f3f4f6',
+                              color: 'var(--text2)', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            수정
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )

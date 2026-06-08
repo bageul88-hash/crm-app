@@ -23,6 +23,9 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
 
+    <!-- SMS 발신 (학부모 자동 출석 알림) -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+
     <!-- 연락처 (CRM 정보 메모 자동 저장) -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
