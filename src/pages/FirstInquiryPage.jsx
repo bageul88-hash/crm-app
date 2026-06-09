@@ -126,7 +126,7 @@ export default function FirstInquiryPage() {
       if (!existing || Number(c.id) > Number(existing.consultId)) {
         seen.set(key, {
           id: String(c.id),
-          name: c.name,
+          name: String(c.name || ''),
           phone: String(c.phone || '').replace(/[^0-9]/g, ''),
           phoneDisplay: c.phone || '',
           consultId: c.id,
