@@ -9,6 +9,15 @@ const DEFAULT_TEMPLATE = `안녕하세요, 참바른글씨입니다. 😊
 감사합니다.`
 
 const SMS_HISTORY_KEY = 'crm_sms_history'
+const SMS_TEMPLATES_KEY = 'crm_sms_templates'
+
+function loadTemplates() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SMS_TEMPLATES_KEY) || 'null')
+    if (Array.isArray(saved) && saved.length > 0) return saved
+  } catch {}
+  return [{ id: 't1', title: '재결재 요청', body: DEFAULT_TEMPLATE }]
+}
 
 function isTarget(n) {
   return n >= 20 && n <= 26
@@ -55,7 +64,8 @@ export default function SmsReservationPage() {
   const [students, setStudents] = useState([])
   const [history, setHistory] = useState(loadSmsHistory)
   const [selected, setSelected] = useState(new Set())
-  const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
+  const [templates, setTemplates] = useState(loadTemplates)
+  const [tplForm, setTplForm] = useState(null) // null | { id, title, body }
   const [phase, setPhase] = useState('list') // 'list' | 'confirm' | 'sending'
   const [queue, setQueue] = useState([])
   const [queueIdx, setQueueIdx] = useState(0)
@@ -198,6 +208,35 @@ export default function SmsReservationPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  // ── 템플릿 관리 헬퍼 ──
+  const saveTemplates = list => {
+    setTemplates(list)
+    try { localStorage.setItem(SMS_TEMPLATES_KEY, JSON.stringify(list)) } catch {}
+  }
+
+  const selectTemplate = id => {
+    const idx = templates.findIndex(t => t.id === id)
+    if (idx <= 0) return
+    saveTemplates([templates[idx], ...templates.filter((_, i) => i !== idx)])
+  }
+
+  const deleteTemplate = id => {
+    if (templates.length <= 1) { alert('템플릿은 최소 1개 이상이어야 합니다.'); return }
+    if (!window.confirm('이 템플릿을 삭제하시겠습니까?')) return
+    saveTemplates(templates.filter(t => t.id !== id))
+  }
+
+  const saveTplForm = () => {
+    const { id, title, body } = tplForm
+    if (!title.trim() || !body.trim()) { alert('제목과 내용을 모두 입력해주세요.'); return }
+    if (id) {
+      saveTemplates(templates.map(t => t.id === id ? { ...t, title: title.trim(), body: body.trim() } : t))
+    } else {
+      saveTemplates([{ id: `t${Date.now()}`, title: title.trim(), body: body.trim() }, ...templates])
+    }
+    setTplForm(null)
+  }
+
   if (currentUser?.role !== 'admin') {
     return (
       <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)' }}>
@@ -222,7 +261,7 @@ export default function SmsReservationPage() {
 
   const handleOpenSms = () => {
     if (!cur) return
-    const body = template
+    const body = (templates[0]?.body ?? '')
       .replace(/{학생이름}/g, cur.name)
       .replace(/{N}/g, cur.totalCount)
     window.location.href = `sms:${cur.phone}?body=${encodeURIComponent(body)}`
@@ -271,7 +310,7 @@ export default function SmsReservationPage() {
 
   // ── 발송 진행 화면 ──
   if (phase === 'sending' && cur) {
-    const bodyPreview = template
+    const bodyPreview = (templates[0]?.body ?? '')
       .replace(/{학생이름}/g, cur.name)
       .replace(/{N}/g, cur.totalCount)
     const isLast = queueIdx + 1 >= queue.length
@@ -514,7 +553,7 @@ export default function SmsReservationPage() {
                           onClick={e => {
                             e.stopPropagation()
                             if (!s.phone) { alert('전화번호가 없습니다.'); return }
-                            const body = template
+                            const body = (templates[0]?.body ?? '')
                               .replace(/{학생이름}/g, s.name)
                               .replace(/{N}/g, s.totalCount)
                             window.location.href = `sms:${s.phone}?body=${encodeURIComponent(body)}`
@@ -619,26 +658,165 @@ export default function SmsReservationPage() {
             </>
           )}
 
-          {/* 문자 템플릿 */}
+          {/* 문자 템플릿 관리 */}
           <div style={{ marginTop: 22 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', marginBottom: 4 }}>
-              문자 템플릿
+            {/* 헤더 */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>문자 템플릿</div>
+              <button
+                type="button"
+                onClick={() => setTplForm({ id: null, title: '', body: '' })}
+                style={{
+                  fontSize: 12, padding: '5px 11px', borderRadius: 8,
+                  border: '1px solid var(--accent)', background: 'rgba(79,126,248,0.08)',
+                  color: 'var(--accent)', cursor: 'pointer', fontWeight: 700,
+                }}
+              >
+                + 새 템플릿
+              </button>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10 }}>
               &#123;학생이름&#125;, &#123;N&#125; 은 발송 시 자동 치환됩니다
             </div>
-            <textarea
-              value={template}
-              onChange={e => setTemplate(e.target.value)}
-              rows={6}
-              style={{
-                width: '100%', borderRadius: 12,
-                border: '1.5px solid var(--border)',
-                padding: '12px 14px', fontSize: 13, lineHeight: 1.8,
-                fontFamily: 'inherit', resize: 'vertical', outline: 'none',
-                background: '#f9fafb', color: 'var(--text)', boxSizing: 'border-box',
-              }}
-            />
+
+            {/* 템플릿 목록 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {templates.map((tpl, idx) => (
+                <div
+                  key={tpl.id}
+                  style={{
+                    borderRadius: 12, padding: '11px 13px',
+                    background: '#fff',
+                    border: idx === 0
+                      ? '2px solid var(--accent)'
+                      : '1px solid var(--border)',
+                  }}
+                >
+                  {/* 제목 행 */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {idx === 0 && (
+                        <span style={{
+                          fontSize: 10, padding: '2px 7px', borderRadius: 20,
+                          background: 'var(--accent)', color: '#fff', fontWeight: 700,
+                        }}>
+                          사용 중
+                        </span>
+                      )}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                        {tpl.title}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {idx !== 0 && (
+                        <button
+                          type="button"
+                          onClick={() => selectTemplate(tpl.id)}
+                          style={{
+                            padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 700,
+                            border: '1px solid var(--accent)', background: 'rgba(79,126,248,0.08)',
+                            color: 'var(--accent)', cursor: 'pointer',
+                          }}
+                        >
+                          선택
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setTplForm({ id: tpl.id, title: tpl.title, body: tpl.body })}
+                        style={{
+                          padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                          border: '1px solid var(--border)', background: '#f3f4f6',
+                          color: 'var(--text2)', cursor: 'pointer',
+                        }}
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteTemplate(tpl.id)}
+                        style={{
+                          padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+                          border: '1px solid #fecaca', background: '#fff5f5',
+                          color: '#ef4444', cursor: 'pointer',
+                        }}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                  {/* 내용 미리보기 */}
+                  <div style={{
+                    fontSize: 12, color: 'var(--text3)', lineHeight: 1.6,
+                    whiteSpace: 'pre-line', overflow: 'hidden',
+                    display: '-webkit-box', WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                  }}>
+                    {tpl.body}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 추가/수정 폼 */}
+            {tplForm && (
+              <div style={{
+                marginTop: 12, borderRadius: 12, padding: '14px',
+                border: '1.5px solid var(--accent)', background: '#f0f4ff',
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8 }}>
+                  {tplForm.id ? '템플릿 수정' : '새 템플릿 추가'}
+                </div>
+                <input
+                  type="text"
+                  placeholder="제목"
+                  value={tplForm.title}
+                  onChange={e => setTplForm(f => ({ ...f, title: e.target.value }))}
+                  style={{
+                    width: '100%', borderRadius: 8, border: '1px solid var(--border)',
+                    padding: '8px 11px', fontSize: 13, marginBottom: 8,
+                    outline: 'none', background: '#fff', boxSizing: 'border-box',
+                    color: 'var(--text)',
+                  }}
+                />
+                <textarea
+                  placeholder="내용 (&#123;학생이름&#125;, &#123;N&#125; 자동 치환)"
+                  value={tplForm.body}
+                  onChange={e => setTplForm(f => ({ ...f, body: e.target.value }))}
+                  rows={5}
+                  style={{
+                    width: '100%', borderRadius: 8, border: '1px solid var(--border)',
+                    padding: '8px 11px', fontSize: 13, lineHeight: 1.8,
+                    fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+                    background: '#fff', color: 'var(--text)', boxSizing: 'border-box',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={saveTplForm}
+                    style={{
+                      flex: 1, padding: '9px 0', borderRadius: 9,
+                      border: 'none', background: 'var(--accent)',
+                      color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    저장
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTplForm(null)}
+                    style={{
+                      padding: '9px 18px', borderRadius: 9,
+                      border: '1px solid var(--border)', background: '#f3f4f6',
+                      color: 'var(--text2)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 문자 예약 버튼 (고정) */}
