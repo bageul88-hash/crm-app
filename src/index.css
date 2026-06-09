@@ -419,6 +419,7 @@ textarea.input { resize: vertical; min-height: 90px; line-height: 1.6; }
 }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-ghost { background: #f3f4f6; color: var(--text2); border: 1px solid var(--border); }
+.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; white-space: nowrap; }
 
 .center-box { display: flex; justify-content: center; padding: 40px; }
 .empty-box { padding: 60px 10px; text-align: center; color: var(--text3); font-size: 14px; font-weight: 700; line-height: 2; }

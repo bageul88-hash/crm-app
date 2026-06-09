@@ -476,7 +476,7 @@ export default function SMSPage() {
             onChange={toggleAll}
             style={{ width: 18, height: 18, accentColor: 'var(--accent)', cursor: 'pointer' }}
           />
-          <span style={{ fontSize: 15, fontWeight: 600 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
             전체 선택&nbsp;
             <span style={{ color: 'var(--accent)' }}>{checkedIds.size}</span>
             <span style={{ color: 'var(--text3)', fontWeight: 400 }}>/{targets.length}명</span>
