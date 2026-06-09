@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { filterByTab } from '../api/sheets'
 import SearchInput from '../components/SearchInput'
-import dayjs from 'dayjs'
 
 const SMS_TABS = ['예약', '문의', '수업중', '미등록', '연결', '펑크', '크레임', '환불', '가맹', '전체']
 
@@ -14,29 +13,6 @@ const RESULT_COLOR = {
   펑크: 'var(--pink)',
 }
 
-const MAX_DAYS = 1095
-const TICKS = [
-  { val: 30,   label: '1개월', showLabel: false },
-  { val: 90,   label: '3개월', showLabel: false },
-  { val: 180,  label: '6개월', showLabel: true  },
-  { val: 365,  label: '1년',   showLabel: true  },
-  { val: 730,  label: '2년',   showLabel: true  },
-  { val: 1095, label: '3년',   showLabel: true  },
-]
-
-function fmtDays(d) {
-  if (d === 0)    return '전체'
-  if (d === 30)   return '1개월'
-  if (d === 60)   return '2개월'
-  if (d === 90)   return '3개월'
-  if (d === 120)  return '4개월'
-  if (d === 150)  return '5개월'
-  if (d === 180)  return '6개월'
-  if (d === 365)  return '1년'
-  if (d === 730)  return '2년'
-  if (d === 1095) return '3년'
-  return `${d}일`
-}
 
 const TEMPLATES = [
   { key: 'studentReserve', label: '학생 진단·예약' },
@@ -263,7 +239,6 @@ export default function SMSPage() {
   const { consults } = useApp()
 
   const [activeTab, setActiveTab] = useState('전체')
-  const [daysBefore, setDaysBefore] = useState(30)
   const [search, setSearch] = useState('')
   const [checkedIds, setCheckedIds] = useState(new Set())
 
@@ -272,21 +247,8 @@ export default function SMSPage() {
   const [customText, setCustomText] = useState('')
   const [tabsExpanded, setTabsExpanded] = useState(false)
 
-  const cutoff = useMemo(
-    () => dayjs().subtract(daysBefore, 'day').format('YYYYMMDD'),
-    [daysBefore]
-  )
-
   const targets = useMemo(() => {
     let list = filterByTab(consults, activeTab)
-
-    if (daysBefore) {
-      list = list.filter(c => {
-        if (!c.inquiryDate) return false
-        const d = String(c.inquiryDate).replace(/-/g, '')
-        return d >= cutoff
-      })
-    }
 
     if (search.trim()) {
       const q = search.trim().toLowerCase()
@@ -296,7 +258,7 @@ export default function SMSPage() {
     }
 
     return [...list].sort((a, b) => b.id - a.id)
-  }, [consults, activeTab, cutoff, daysBefore, search])
+  }, [consults, activeTab, search])
 
   // targets 변경 시 전체 체크로 초기화
   useEffect(() => {
@@ -425,41 +387,6 @@ export default function SMSPage() {
         >
           ▼
         </button>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <label className="label">최근 N일 이내 문의</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-          <div style={{ flex: 1 }}>
-            <input
-              type="range"
-              min={0}
-              max={MAX_DAYS}
-              value={daysBefore}
-              onChange={e => setDaysBefore(Number(e.target.value))}
-              style={{ width: '100%', accentColor: 'var(--accent)' }}
-            />
-            <div style={{ position: 'relative', height: 28, marginTop: 2 }}>
-              {TICKS.map(({ val, label, showLabel }) => {
-                const pct = (val / MAX_DAYS) * 100
-                const active = daysBefore >= val
-                return (
-                  <div key={val} style={{ position: 'absolute', left: `${pct}%`, transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: 2, height: 6, background: active ? 'var(--accent)' : '#d1d5db', borderRadius: 1 }} />
-                    {showLabel && (
-                      <span style={{ fontSize: 10, color: active ? 'var(--accent)' : 'var(--text3)', fontWeight: active ? 700 : 400, whiteSpace: 'nowrap', marginTop: 2 }}>
-                        {label}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          <span style={{ minWidth: 48, fontSize: 14, fontWeight: 600, color: 'var(--accent)', textAlign: 'right' }}>
-            {fmtDays(daysBefore)}
-          </span>
-        </div>
       </div>
 
       {/* 전체 체크박스 + 카운트 + 문자보내기 */}
