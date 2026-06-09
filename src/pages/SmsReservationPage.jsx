@@ -2,6 +2,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { searchPhoneByStudentName } from '../hooks/useSmsAttendance'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 const DEFAULT_TEMPLATE = `안녕하세요, 참바른글씨입니다. 😊
 {학생이름} 학생이 총 {N}회 수업을 완료하였습니다.
@@ -10,6 +17,7 @@ const DEFAULT_TEMPLATE = `안녕하세요, 참바른글씨입니다. 😊
 
 const SMS_HISTORY_KEY = 'crm_sms_history'
 const SMS_TEMPLATES_KEY = 'crm_sms_templates'
+const SMS_ACTIVE_KEY = 'crm_sms_active_template_id'
 
 function loadTemplates() {
   try {
@@ -17,6 +25,14 @@ function loadTemplates() {
     if (Array.isArray(saved) && saved.length > 0) return saved
   } catch {}
   return [{ id: 't1', title: '재결재 요청', body: DEFAULT_TEMPLATE }]
+}
+
+function loadActiveId(tpls) {
+  try {
+    const saved = localStorage.getItem(SMS_ACTIVE_KEY)
+    if (saved && tpls.find(t => t.id === saved)) return saved
+  } catch {}
+  return tpls[0]?.id ?? null
 }
 
 function isTarget(n) {
@@ -57,6 +73,79 @@ function fmtDateTime(iso) {
   return `${mo}/${day} ${ampm} ${h % 12 || 12}:${String(m).padStart(2, '0')}`
 }
 
+function SortableTemplateItem({ tpl, isActive, onSelect, onEdit, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: tpl.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        borderRadius: 12, padding: '11px 13px', background: '#fff',
+        border: isActive ? '2px solid var(--accent)' : '1px solid var(--border)',
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.18)' : undefined,
+        position: 'relative',
+      }}
+    >
+      {/* 제목 행 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* 드래그 핸들 */}
+          <div
+            {...attributes}
+            {...listeners}
+            style={{
+              touchAction: 'none', cursor: isDragging ? 'grabbing' : 'grab',
+              fontSize: 18, color: '#9ca3af', padding: '0 4px', userSelect: 'none',
+              lineHeight: 1,
+            }}
+          >
+            ≡
+          </div>
+          {isActive && (
+            <span style={{
+              fontSize: 10, padding: '2px 7px', borderRadius: 20,
+              background: 'var(--accent)', color: '#fff', fontWeight: 700,
+            }}>
+              사용 중
+            </span>
+          )}
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{tpl.title}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {!isActive && (
+            <button type="button" onClick={onSelect} style={{
+              padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 700,
+              border: '1px solid var(--accent)', background: 'rgba(79,126,248,0.08)',
+              color: 'var(--accent)', cursor: 'pointer',
+            }}>선택</button>
+          )}
+          <button type="button" onClick={onEdit} style={{
+            padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+            border: '1px solid var(--border)', background: '#f3f4f6',
+            color: 'var(--text2)', cursor: 'pointer',
+          }}>수정</button>
+          <button type="button" onClick={onDelete} style={{
+            padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+            border: '1px solid #fecaca', background: '#fff5f5',
+            color: '#ef4444', cursor: 'pointer',
+          }}>삭제</button>
+        </div>
+      </div>
+      {/* 내용 미리보기 */}
+      <div style={{
+        fontSize: 12, color: 'var(--text3)', lineHeight: 1.6,
+        whiteSpace: 'pre-line', overflow: 'hidden',
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+      }}>
+        {tpl.body}
+      </div>
+    </div>
+  )
+}
+
 export default function SmsReservationPage() {
   const { currentUser, consults: contextConsults, silentSync } = useApp()
   const navigate = useNavigate()
@@ -65,6 +154,7 @@ export default function SmsReservationPage() {
   const [history, setHistory] = useState(loadSmsHistory)
   const [selected, setSelected] = useState(new Set())
   const [templates, setTemplates] = useState(loadTemplates)
+  const [activeTemplateId, setActiveTemplateId] = useState(() => loadActiveId(loadTemplates()))
   const [tplForm, setTplForm] = useState(null) // null | { id, title, body }
   const [phase, setPhase] = useState('list') // 'list' | 'confirm' | 'sending'
   const [queue, setQueue] = useState([])
@@ -214,16 +304,19 @@ export default function SmsReservationPage() {
     try { localStorage.setItem(SMS_TEMPLATES_KEY, JSON.stringify(list)) } catch {}
   }
 
-  const selectTemplate = id => {
-    const idx = templates.findIndex(t => t.id === id)
-    if (idx <= 0) return
-    saveTemplates([templates[idx], ...templates.filter((_, i) => i !== idx)])
+  const saveActiveId = id => {
+    setActiveTemplateId(id)
+    try { localStorage.setItem(SMS_ACTIVE_KEY, id ?? '') } catch {}
   }
+
+  const selectTemplate = id => saveActiveId(id)
 
   const deleteTemplate = id => {
     if (templates.length <= 1) { alert('템플릿은 최소 1개 이상이어야 합니다.'); return }
     if (!window.confirm('이 템플릿을 삭제하시겠습니까?')) return
-    saveTemplates(templates.filter(t => t.id !== id))
+    const next = templates.filter(t => t.id !== id)
+    saveTemplates(next)
+    if (activeTemplateId === id) saveActiveId(next[0]?.id ?? null)
   }
 
   const saveTplForm = () => {
@@ -232,10 +325,28 @@ export default function SmsReservationPage() {
     if (id) {
       saveTemplates(templates.map(t => t.id === id ? { ...t, title: title.trim(), body: body.trim() } : t))
     } else {
-      saveTemplates([{ id: `t${Date.now()}`, title: title.trim(), body: body.trim() }, ...templates])
+      const newTpl = { id: `t${Date.now()}`, title: title.trim(), body: body.trim() }
+      saveTemplates([...templates, newTpl])
+      saveActiveId(newTpl.id)
     }
     setTplForm(null)
   }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
+
+  const handleDragEnd = event => {
+    const { active, over } = event
+    if (active.id !== over?.id) {
+      const oldIdx = templates.findIndex(t => t.id === active.id)
+      const newIdx = templates.findIndex(t => t.id === over.id)
+      saveTemplates(arrayMove(templates, oldIdx, newIdx))
+    }
+  }
+
+  const activeBody = (templates.find(t => t.id === activeTemplateId) ?? templates[0])?.body ?? ''
 
   if (currentUser?.role !== 'admin') {
     return (
@@ -261,7 +372,7 @@ export default function SmsReservationPage() {
 
   const handleOpenSms = () => {
     if (!cur) return
-    const body = (templates[0]?.body ?? '')
+    const body = activeBody
       .replace(/{학생이름}/g, cur.name)
       .replace(/{N}/g, cur.totalCount)
     window.location.href = `sms:${cur.phone}?body=${encodeURIComponent(body)}`
@@ -310,7 +421,7 @@ export default function SmsReservationPage() {
 
   // ── 발송 진행 화면 ──
   if (phase === 'sending' && cur) {
-    const bodyPreview = (templates[0]?.body ?? '')
+    const bodyPreview = activeBody
       .replace(/{학생이름}/g, cur.name)
       .replace(/{N}/g, cur.totalCount)
     const isLast = queueIdx + 1 >= queue.length
@@ -553,7 +664,7 @@ export default function SmsReservationPage() {
                           onClick={e => {
                             e.stopPropagation()
                             if (!s.phone) { alert('전화번호가 없습니다.'); return }
-                            const body = (templates[0]?.body ?? '')
+                            const body = activeBody
                               .replace(/{학생이름}/g, s.name)
                               .replace(/{N}/g, s.totalCount)
                             window.location.href = `sms:${s.phone}?body=${encodeURIComponent(body)}`
@@ -679,84 +790,23 @@ export default function SmsReservationPage() {
               &#123;학생이름&#125;, &#123;N&#125; 은 발송 시 자동 치환됩니다
             </div>
 
-            {/* 템플릿 목록 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {templates.map((tpl, idx) => (
-                <div
-                  key={tpl.id}
-                  style={{
-                    borderRadius: 12, padding: '11px 13px',
-                    background: '#fff',
-                    border: idx === 0
-                      ? '2px solid var(--accent)'
-                      : '1px solid var(--border)',
-                  }}
-                >
-                  {/* 제목 행 */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {idx === 0 && (
-                        <span style={{
-                          fontSize: 10, padding: '2px 7px', borderRadius: 20,
-                          background: 'var(--accent)', color: '#fff', fontWeight: 700,
-                        }}>
-                          사용 중
-                        </span>
-                      )}
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                        {tpl.title}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {idx !== 0 && (
-                        <button
-                          type="button"
-                          onClick={() => selectTemplate(tpl.id)}
-                          style={{
-                            padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 700,
-                            border: '1px solid var(--accent)', background: 'rgba(79,126,248,0.08)',
-                            color: 'var(--accent)', cursor: 'pointer',
-                          }}
-                        >
-                          선택
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setTplForm({ id: tpl.id, title: tpl.title, body: tpl.body })}
-                        style={{
-                          padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 600,
-                          border: '1px solid var(--border)', background: '#f3f4f6',
-                          color: 'var(--text2)', cursor: 'pointer',
-                        }}
-                      >
-                        수정
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteTemplate(tpl.id)}
-                        style={{
-                          padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 600,
-                          border: '1px solid #fecaca', background: '#fff5f5',
-                          color: '#ef4444', cursor: 'pointer',
-                        }}
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                  {/* 내용 미리보기 */}
-                  <div style={{
-                    fontSize: 12, color: 'var(--text3)', lineHeight: 1.6,
-                    whiteSpace: 'pre-line', overflow: 'hidden',
-                    display: '-webkit-box', WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                  }}>
-                    {tpl.body}
-                  </div>
+            {/* 템플릿 목록 — 드래그 정렬 */}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={templates.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {templates.map(tpl => (
+                    <SortableTemplateItem
+                      key={tpl.id}
+                      tpl={tpl}
+                      isActive={tpl.id === activeTemplateId}
+                      onSelect={() => selectTemplate(tpl.id)}
+                      onEdit={() => setTplForm({ id: tpl.id, title: tpl.title, body: tpl.body })}
+                      onDelete={() => deleteTemplate(tpl.id)}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
 
             {/* 추가/수정 폼 */}
             {tplForm && (
