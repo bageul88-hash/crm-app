@@ -622,8 +622,8 @@ export default function SmsReservationPage() {
                         transition: 'border-color 0.15s, background 0.15s',
                       }}
                     >
-                      {/* 1행: 체크박스 + 이름 + 문자보내기 + 수정 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      {/* 1행: 체크박스 + 이름 + 문자보내기 + 재결재완료 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap' }}>
                         <div style={{
                           width: 18, height: 18, borderRadius: 5, flexShrink: 0,
                           border: `2px solid ${isSelected ? 'var(--accent)' : '#d1d5db'}`,
@@ -646,6 +646,33 @@ export default function SmsReservationPage() {
                         >
                           문자보내기
                         </button>
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation()
+                            const newEntry = { id: `done_${Date.now()}`, studentName: s.name, phone: s.phone, totalCount: s.totalCount, sentAt: new Date().toISOString() }
+                            const updated = [...history, newEntry]
+                            try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+                            setHistory(updated)
+                            setStudents(prev => prev.filter(st => st.id !== s.id))
+                          }}
+                          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #d1d5db', background: '#f3f4f6', color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          재결재완료
+                        </button>
+                      </div>
+
+                      {/* 2행: 출석 + 전화번호 + 수정 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, paddingLeft: 25, flexWrap: 'nowrap' }}>
+                        <div
+                          onClick={e => { e.stopPropagation(); setAttendanceModal(s) }}
+                          style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600, whiteSpace: 'nowrap' }}
+                        >
+                          총 {s.totalCount}회 출석
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          📱 {s.phoneDisplay || s.phone || '번호 없음'}
+                        </div>
                         <button
                           type="button"
                           onClick={async e => {
@@ -672,33 +699,6 @@ export default function SmsReservationPage() {
                           style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid var(--border)', background: '#f3f4f6', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
                         >
                           수정
-                        </button>
-                      </div>
-
-                      {/* 2행: 출석 + 전화번호 + 재결재완료 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, paddingLeft: 25 }}>
-                        <div
-                          onClick={e => { e.stopPropagation(); setAttendanceModal(s) }}
-                          style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600, whiteSpace: 'nowrap' }}
-                        >
-                          총 {s.totalCount}회 출석
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          📱 {s.phoneDisplay || s.phone || '번호 없음'}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation()
-                            const newEntry = { id: `done_${Date.now()}`, studentName: s.name, phone: s.phone, totalCount: s.totalCount, sentAt: new Date().toISOString() }
-                            const updated = [...history, newEntry]
-                            try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
-                            setHistory(updated)
-                            setStudents(prev => prev.filter(st => st.id !== s.id))
-                          }}
-                          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #d1d5db', background: '#f3f4f6', color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                        >
-                          재결재완료
                         </button>
                       </div>
                     </div>
