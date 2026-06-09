@@ -194,8 +194,8 @@ export default function App() {
                 className="header-btn header-btn-branch"
                 onClick={() => navigate('/sms-reservation')}
               >
+                <span>재결</span>
                 <span>문자</span>
-                <span>예약</span>
               </button>
             </>
           )}
