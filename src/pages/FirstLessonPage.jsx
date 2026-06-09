@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { searchPhoneByStudentName } from '../hooks/useSmsAttendance'
+import { searchPhoneByStudentName, readSmsHistory } from '../hooks/useSmsAttendance'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
 } from '@dnd-kit/core'
@@ -175,6 +175,8 @@ export default function FirstLessonPage() {
   const [queueIdx, setQueueIdx] = useState(0)
   const [smsOpened, setSmsOpened] = useState(false)
   const [attendanceModal, setAttendanceModal] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const [toast, setToast] = useState(null)
 
   const refresh = useCallback(() => {
     const records = (() => {
@@ -266,6 +268,47 @@ export default function FirstLessonPage() {
   }, [contextConsults])
 
   useEffect(() => { refresh() }, [refresh])
+
+  const showToast = useCallback((msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }, [])
+
+  // 출석관리 "출석이력"과 동일 소스(readSmsHistory → attendance_records 병합)
+  const handleImport = useCallback(async () => {
+    if (importing) return
+    setImporting(true)
+    silentSync()
+    try {
+      const { items } = await readSmsHistory(99999)
+      const raw = localStorage.getItem('attendance_records')
+      const recs = raw ? JSON.parse(raw) : {}
+      items.forEach(({ studentName, date, time }) => {
+        const list = recs[date] || []
+        const already = list.some(e => (typeof e === 'string' ? e : e?.name) === studentName)
+        if (!already) {
+          recs[date] = [...list, { name: studentName, time: time || null }]
+        }
+      })
+      localStorage.setItem('attendance_records', JSON.stringify(recs))
+    } catch (e) {
+      console.warn('[FirstLesson] 출석이력 불러오기 실패:', e?.message)
+    }
+    refresh()
+    setImporting(false)
+    // 병합 후 count===1 학생 수 계산 → 토스트
+    const recs2 = (() => { try { return JSON.parse(localStorage.getItem('attendance_records') || '{}') } catch { return {} } })()
+    const sentSet = loadSentSet()
+    const totals2 = {}
+    Object.values(recs2).forEach(list => {
+      ;(list || []).forEach(entry => {
+        const n = typeof entry === 'string' ? entry : entry?.name
+        if (n) totals2[n] = (totals2[n] || 0) + 1
+      })
+    })
+    const targetCount = Object.entries(totals2).filter(([n, c]) => c === 1 && !sentSet.has(n)).length
+    showToast(`출석이력 갱신 완료 — 첫수업 대상 ${targetCount}명`)
+  }, [importing, silentSync, refresh, showToast])
 
   // ── 템플릿 관리 ──
   const saveTemplates = list => {
@@ -496,6 +539,18 @@ export default function FirstLessonPage() {
   // ── 메인 화면 ──
   return (
     <div style={{ paddingBottom: 100 }}>
+      {/* 토스트 */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9999, background: '#1e293b', color: '#fff',
+          padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)', whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+        }}>
+          {toast}
+        </div>
+      )}
       {/* 탭 */}
       <div style={{
         display: 'flex', borderBottom: '1px solid var(--border)',
@@ -535,14 +590,16 @@ export default function FirstLessonPage() {
             </div>
             <button
               type="button"
-              onClick={() => { silentSync(); refresh() }}
+              onClick={handleImport}
+              disabled={importing}
               style={{
                 fontSize: 13, padding: '7px 13px', borderRadius: 9,
                 border: '1px solid var(--accent)', background: 'rgba(79,126,248,0.08)',
-                color: 'var(--accent)', cursor: 'pointer', fontWeight: 700,
+                color: importing ? '#9ca3af' : 'var(--accent)',
+                cursor: importing ? 'not-allowed' : 'pointer', fontWeight: 700,
               }}
             >
-              불러오기
+              {importing ? '불러오는 중...' : '불러오기'}
             </button>
           </div>
 
