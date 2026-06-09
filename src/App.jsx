@@ -44,6 +44,7 @@ import MemoPage from './pages/MemoPage'
 import ApprovalSMSPage from './pages/ApprovalSMSPage'
 import SmsReservationPage from './pages/SmsReservationPage'
 import FirstLessonPage from './pages/FirstLessonPage'
+import FirstInquiryPage from './pages/FirstInquiryPage'
 import LoginPage from './pages/LoginPage'
 
 import CallBanner from './components/CallBanner'
@@ -184,6 +185,14 @@ export default function App() {
               <button
                 type="button"
                 className="header-btn header-btn-branch"
+                onClick={() => navigate('/first-inquiry')}
+              >
+                <span>첫</span>
+                <span>문의</span>
+              </button>
+              <button
+                type="button"
+                className="header-btn header-btn-branch"
                 onClick={() => navigate('/first-lesson')}
               >
                 <span>첫</span>
@@ -194,8 +203,8 @@ export default function App() {
                 className="header-btn header-btn-branch"
                 onClick={() => navigate('/sms-reservation')}
               >
+                <span>첫</span>
                 <span>재결</span>
-                <span>문자</span>
               </button>
             </>
           )}
@@ -221,6 +230,7 @@ export default function App() {
           <Route path="/approval" element={<ApprovalSMSPage />} />
           <Route path="/sms-reservation" element={<SmsReservationPage />} />
           <Route path="/first-lesson" element={<FirstLessonPage />} />
+          <Route path="/first-inquiry" element={<FirstInquiryPage />} />
           <Route path="/detail/:id" element={<DetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
