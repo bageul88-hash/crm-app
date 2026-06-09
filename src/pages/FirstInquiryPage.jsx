@@ -134,7 +134,11 @@ export default function FirstInquiryPage() {
         })
       }
     })
-    const result = [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
+    const result = [...seen.values()].sort((a, b) => {
+      const da = a.inquiryDate || ''
+      const db = b.inquiryDate || ''
+      return db.localeCompare(da) || a.name.localeCompare(b.name)
+    })
     setStudents(result)
     setHistory(loadHistory())
   }, [contextConsults])
