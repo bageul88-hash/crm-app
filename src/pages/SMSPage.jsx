@@ -1,7 +1,12 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { filterByTab } from '../api/sheets'
 import SearchInput from '../components/SearchInput'
+import { registerPlugin } from '@capacitor/core'
+
+const SmsPlugin = registerPlugin('SmsPlugin')
+const MIN_DELAY = 5000   // 순차 발송 최소 대기(ms)
+const MAX_DELAY = 10000  // 순차 발송 최대 대기(ms)
 
 const SMS_TABS = ['예약', '문의', '수업중', '미등록', '연결', '펑크', '크레임', '환불', '가맹', '전체']
 
@@ -246,6 +251,11 @@ export default function SMSPage() {
   const [templateKey, setTemplateKey] = useState('generalReserve')
   const [customText, setCustomText] = useState('')
   const [tabsExpanded, setTabsExpanded] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendIdx, setSendIdx] = useState(0)
+  const [sendResults, setSendResults] = useState(null)
+  const abortRef = useRef(false)
+  const wakeLockRef = useRef(null)
 
   const targets = useMemo(() => {
     let list = filterByTab(consults, activeTab)
@@ -308,24 +318,91 @@ export default function SMSPage() {
     setCustomText('')
   }
 
-  const closeSmsModal = () => {
-    setSelectedTargets([])
-    setCustomText('')
-  }
-
-  const sendSms = () => {
-    if (targetPhones.length === 0) {
-      alert('전화번호가 없습니다.')
-      return
-    }
-    const phones = targetPhones.join(',')
-    window.location.href = `sms:${phones}?body=${encodeURIComponent(previewText)}`
-  }
 
   const copyText = async () => {
     await navigator.clipboard.writeText(previewText)
     alert('문자 내용이 복사되었습니다.')
   }
+
+  // 수신자별 이름 치환
+  const buildBody = useCallback((target) => {
+    if (customText) {
+      return customText.replace(/{학생이름}/g, target.name || '고객님')
+    }
+    return makeSmsBody(target, templateKey)
+  }, [customText, templateKey])
+
+  const closeSmsModal = useCallback(() => {
+    if (sending) return
+    setSelectedTargets([])
+    setCustomText('')
+    setSendResults(null)
+  }, [sending])
+
+  const sendSmsSequential = useCallback(async () => {
+    if (selectedTargets.length === 0) { alert('발송할 대상이 없습니다.'); return }
+
+    // 야간 발송 경고 (21:00 ~ 08:00)
+    const h = new Date().getHours()
+    if (h >= 21 || h < 8) {
+      if (!window.confirm('야간(오후 9시~오전 8시)에는 광고성 문자 발송이 제한됩니다.\n그래도 보내시겠습니까?')) return
+    }
+
+    // SEND_SMS 런타임 권한 확인
+    try {
+      const perm = await SmsPlugin.requestSendSmsPermission()
+      if (!perm.granted) { alert('SMS 발송 권한이 없습니다. 설정에서 허용해주세요.'); return }
+    } catch (e) {
+      console.warn('[SMS] 권한 확인 실패(웹 환경):', e?.message)
+    }
+
+    // 화면 꺼짐 방지 (Screen Wake Lock)
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen')
+      }
+    } catch (e) { console.warn('[WakeLock]', e?.message) }
+
+    abortRef.current = false
+    setSending(true)
+    setSendIdx(0)
+    setSendResults(null)
+
+    const successes = []
+    const failures = []
+
+    for (let i = 0; i < selectedTargets.length; i++) {
+      if (abortRef.current) break
+
+      setSendIdx(i)
+      const target = selectedTargets[i]
+
+      if (!target.phone) {
+        failures.push({ name: target.name || '(이름없음)', phone: '없음', reason: '전화번호 없음' })
+        continue
+      }
+
+      try {
+        const body = buildBody(target)
+        await SmsPlugin.sendSms({ phone: target.phone, body })
+        successes.push({ name: target.name || '(이름없음)', phone: target.phone })
+      } catch (e) {
+        failures.push({ name: target.name || '(이름없음)', phone: target.phone, reason: e?.message || '발송 오류' })
+      }
+
+      // 마지막 발송 후에는 대기 없이 종료
+      if (i < selectedTargets.length - 1 && !abortRef.current) {
+        const delay = Math.floor(Math.random() * (MAX_DELAY - MIN_DELAY + 1)) + MIN_DELAY
+        await new Promise(r => setTimeout(r, delay))
+      }
+    }
+
+    // Wake Lock 해제
+    try { await wakeLockRef.current?.release(); wakeLockRef.current = null } catch (e) {}
+
+    setSending(false)
+    setSendResults({ success: successes, failure: failures, aborted: abortRef.current })
+  }, [selectedTargets, buildBody])
 
   return (
     <div style={{ padding: 16 }}>
@@ -514,54 +591,118 @@ export default function SMSPage() {
 
       {/* 문자 발송 모달 */}
       {selectedTargets.length > 0 && (
-        <div style={{
-          position: 'fixed', inset: 0, background: '#fff',
-          zIndex: 999, padding: 16, overflowY: 'auto',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>문자 발송</h2>
-              <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-                대상 {selectedTargets.length}명
+        <div style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 999, padding: 16, overflowY: 'auto' }}>
+
+          {/* ── 발송 결과 화면 ── */}
+          {sendResults ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>
+                {sendResults.failure.length === 0 ? '✅' : '⚠️'}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>
+                발송 {sendResults.aborted ? '중단' : '완료'}
+              </div>
+              <div style={{ fontSize: 15, color: 'var(--text2)', marginBottom: 20 }}>
+                성공 <span style={{ color: '#16a34a', fontWeight: 700 }}>{sendResults.success.length}건</span>
+                &nbsp;/ 실패 <span style={{ color: '#dc2626', fontWeight: 700 }}>{sendResults.failure.length}건</span>
+              </div>
+              {sendResults.failure.length > 0 && (
+                <div style={{ width: '100%', maxWidth: 400, background: '#fef2f2', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', marginBottom: 8 }}>실패 목록</div>
+                  {sendResults.failure.map((f, i) => (
+                    <div key={i} style={{ fontSize: 13, color: '#7f1d1d', padding: '4px 0', borderBottom: '1px solid #fecaca' }}>
+                      {f.name} ({f.phone}) — {f.reason}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button className="btn btn-primary" style={{ minWidth: 160 }}
+                onClick={() => { setSendResults(null); setSelectedTargets([]); setCustomText('') }}>
+                확인
+              </button>
+            </div>
+
+          ) : sending ? (
+            /* ── 발송 진행 화면 ── */
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 0 24px' }}>
+              <div style={{ fontSize: 32, marginBottom: 16 }}>📨</div>
+              <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>순차 발송 중...</div>
+              <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>
+                {sendIdx + 1} / {selectedTargets.length}명 &nbsp;—&nbsp;
+                <span style={{ fontWeight: 700 }}>{selectedTargets[sendIdx]?.name || ''}</span>
+              </div>
+              <div style={{ width: '90%', maxWidth: 360, height: 8, background: '#e5e7eb', borderRadius: 4, marginBottom: 8 }}>
+                <div style={{
+                  width: `${Math.round(((sendIdx + 1) / selectedTargets.length) * 100)}%`,
+                  height: '100%', background: 'var(--accent)', borderRadius: 4,
+                  transition: 'width 0.4s',
+                }} />
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 32 }}>
+                {Math.round(((sendIdx + 1) / selectedTargets.length) * 100)}%
+              </div>
+              <button className="btn btn-ghost"
+                onClick={() => { abortRef.current = true }}
+                style={{ color: '#dc2626', borderColor: '#dc2626' }}>
+                ⏹ 중단
+              </button>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 16, textAlign: 'center' }}>
+                발송 사이에 5~10초 랜덤 대기 중<br/>화면을 끄지 마세요
               </div>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={closeSmsModal} style={{ fontSize: 18 }}>×</button>
-          </div>
 
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12 }}>
-            {TEMPLATES.map(t => (
-              <button
-                key={t.key}
-                onClick={() => { setTemplateKey(t.key); setCustomText('') }}
-                style={{
-                  flexShrink: 0, padding: '6px 12px', borderRadius: 20,
-                  border: `1px solid ${templateKey === t.key ? 'var(--accent)' : 'var(--border)'}`,
-                  background: templateKey === t.key ? 'rgba(79,126,248,0.12)' : 'transparent',
-                  color: templateKey === t.key ? 'var(--accent)' : 'var(--text2)',
-                  fontSize: 13, cursor: 'pointer',
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          ) : (
+            /* ── 기본 작성 화면 ── */
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>문자 발송</h2>
+                  <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+                    대상 {selectedTargets.length}명 · 순차 자동 발송
+                  </div>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={closeSmsModal} style={{ fontSize: 18 }}>×</button>
+              </div>
 
-          <label className="label">문자 내용</label>
-          <textarea
-            className="input"
-            style={{ minHeight: 260, marginTop: 8, fontSize: 14, lineHeight: 1.6, color: 'var(--text2)' }}
-            value={previewText}
-            onChange={e => setCustomText(e.target.value)}
-          />
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12 }}>
+                {TEMPLATES.map(t => (
+                  <button key={t.key}
+                    onClick={() => { setTemplateKey(t.key); setCustomText('') }}
+                    style={{
+                      flexShrink: 0, padding: '6px 12px', borderRadius: 20,
+                      border: `1px solid ${templateKey === t.key ? 'var(--accent)' : 'var(--border)'}`,
+                      background: templateKey === t.key ? 'rgba(79,126,248,0.12)' : 'transparent',
+                      color: templateKey === t.key ? 'var(--accent)' : 'var(--text2)',
+                      fontSize: 13, cursor: 'pointer',
+                    }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
 
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text3)' }}>
-            수신번호: {targetPhones.join(', ')}
-          </div>
+              <label className="label">문자 내용</label>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>
+                직접 수정 시 <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: 4 }}>&#123;학생이름&#125;</code> 을 쓰면 각 학생 이름으로 자동 치환됩니다
+              </div>
+              <textarea
+                className="input"
+                style={{ minHeight: 260, marginTop: 4, fontSize: 14, lineHeight: 1.6, color: 'var(--text2)' }}
+                value={previewText}
+                onChange={e => setCustomText(e.target.value)}
+              />
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={copyText}>내용 복사</button>
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={sendSms}>📩 문자 보내기</button>
-          </div>
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text3)' }}>
+                수신번호: {targetPhones.join(', ')}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={copyText}>내용 복사</button>
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={sendSmsSequential}>
+                  📩 순차 발송 시작
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
