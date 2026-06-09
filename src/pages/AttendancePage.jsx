@@ -3,7 +3,8 @@ import { ref as dbRef, remove } from 'firebase/database'
 import { db } from '../firebase'
 import { readSmsHistory } from '../hooks/useSmsAttendance'
 import SearchInput from '../components/SearchInput'
-import { handleStudentArrival } from '../api/firebaseAttendance'
+import { handleStudentArrival, saveAttendanceToFirebase } from '../api/firebaseAttendance'
+import DatePicker from '../components/DatePicker'
 
 const TODAY     = new Date()
 const TODAY_STR = `${TODAY.getFullYear()}${String(TODAY.getMonth()+1).padStart(2,'0')}${String(TODAY.getDate()).padStart(2,'0')}`
@@ -40,6 +41,11 @@ export default function AttendancePage() {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)   // 삭제 확인 대상 entry
+  const [addingEntry, setAddingEntry] = useState(false)
+  const [newDate, setNewDate] = useState(TODAY_HYPHEN)
+  const [newAmPm, setNewAmPm] = useState('오후')
+  const [newHour, setNewHour] = useState('3')
+  const [newMin, setNewMin] = useState('00')
   const lockRef = useRef(false)
   const pressTimer = useRef(null)
 
@@ -184,6 +190,30 @@ export default function AttendancePage() {
     }
   }, [deleteTarget])
 
+  // ── 출석 일자 추가 ──
+  const handleAddEntry = useCallback(async () => {
+    if (!selectedStudent || !newDate) return
+    const dateKey = newDate.replace(/-/g, '')
+    let h = parseInt(newHour)
+    if (newAmPm === '오전' && h === 12) h = 0
+    if (newAmPm === '오후' && h !== 12) h += 12
+    const timeStr = `${String(h).padStart(2, '0')}:${newMin}`
+
+    const existingList = records[dateKey] || []
+    const isDupe = existingList.some(e => {
+      const entry = toEntry(e)
+      return entry.name === selectedStudent && entry.time === timeStr
+    })
+    if (isDupe) { alert('이미 같은 날짜/시간의 출석 기록이 있습니다.'); return }
+
+    const newEntry = { name: selectedStudent, time: timeStr }
+    const updated = { ...records, [dateKey]: [...existingList, newEntry] }
+    localStorage.setItem('attendance_records', JSON.stringify(updated))
+    setRecords(updated)
+    await saveAttendanceToFirebase(selectedStudent, dateKey, timeStr, null)
+    setAddingEntry(false)
+  }, [selectedStudent, newDate, newAmPm, newHour, newMin, records])
+
   // 파생 데이터
   const searchQ = search.trim().toLowerCase()
   const matchName = (name) => !searchQ || String(name || '').toLowerCase().includes(searchQ)
@@ -316,9 +346,48 @@ export default function AttendancePage() {
                   <div style={{ fontSize:17, fontWeight:800, color:'var(--text)' }}>{selectedStudent}</div>
                   <div style={{ fontSize:12, color:'var(--text3)', marginTop:2 }}>총 출석 <span style={{ color:'var(--accent)', fontWeight:700 }}>{studentRecords.length}</span>회</div>
                 </div>
-                <button type="button" onClick={() => setSelectedStudent(null)}
-                  style={{ fontSize:22, background:'none', border:'none', color:'var(--text3)', cursor:'pointer', padding:'4px 8px', lineHeight:1 }}>✕</button>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <button type="button"
+                    onClick={() => { setAddingEntry(true); setNewDate(TODAY_HYPHEN); setNewAmPm('오후'); setNewHour('3'); setNewMin('00') }}
+                    style={{ fontSize:12, padding:'6px 10px', borderRadius:8, border:'1px solid var(--accent)', background:'rgba(79,126,248,0.08)', color:'var(--accent)', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    + 추가
+                  </button>
+                  <button type="button" onClick={() => { setSelectedStudent(null); setAddingEntry(false) }}
+                    style={{ fontSize:22, background:'none', border:'none', color:'var(--text3)', cursor:'pointer', padding:'4px 8px', lineHeight:1 }}>✕</button>
+                </div>
               </div>
+              {addingEntry && (
+                <div style={{ padding:'14px 20px', borderBottom:'1px solid var(--border)', background:'#f8faff' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--text2)', marginBottom:8 }}>날짜</div>
+                  <DatePicker value={newDate} onChange={setNewDate} />
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--text2)', margin:'12px 0 8px' }}>시간</div>
+                  <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                    <select value={newAmPm} onChange={e => setNewAmPm(e.target.value)}
+                      style={{ flex:1, padding:'8px 6px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, background:'#fff', color:'var(--text)' }}>
+                      <option>오전</option><option>오후</option>
+                    </select>
+                    <select value={newHour} onChange={e => setNewHour(e.target.value)}
+                      style={{ flex:1, padding:'8px 6px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, background:'#fff', color:'var(--text)' }}>
+                      {Array.from({length:12}, (_,i) => String(i+1)).map(h => <option key={h}>{h}</option>)}
+                    </select>
+                    <span style={{ fontWeight:700, color:'var(--text3)' }}>:</span>
+                    <select value={newMin} onChange={e => setNewMin(e.target.value)}
+                      style={{ flex:1, padding:'8px 6px', borderRadius:8, border:'1px solid var(--border)', fontSize:14, background:'#fff', color:'var(--text)' }}>
+                      {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                    <button type="button" onClick={() => setAddingEntry(false)}
+                      style={{ flex:1, padding:'10px', borderRadius:10, border:'1px solid var(--border)', background:'#f3f4f6', color:'var(--text2)', fontSize:14, fontWeight:600, cursor:'pointer' }}>
+                      취소
+                    </button>
+                    <button type="button" onClick={handleAddEntry}
+                      style={{ flex:2, padding:'10px', borderRadius:10, border:'none', background:'var(--accent)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer' }}>
+                      추가
+                    </button>
+                  </div>
+                </div>
+              )}
               <div style={{ overflowY:'auto', flex:1, padding:'8px 0' }}>
                 {studentRecords.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text3)', fontSize:14 }}>출석 이력이 없습니다.</div>
@@ -330,7 +399,7 @@ export default function AttendancePage() {
                 ))}
               </div>
               <div style={{ padding:'12px 20px', borderTop:'1px solid var(--border)' }}>
-                <button type="button" onClick={() => setSelectedStudent(null)}
+                <button type="button" onClick={() => { setSelectedStudent(null); setAddingEntry(false) }}
                   style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'var(--accent)', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
                   닫기
                 </button>
@@ -467,7 +536,13 @@ export default function AttendancePage() {
                             총 출석 {studentTotals[e.name] || 0}회
                           </span>
                         </div>
-                        <span style={{ fontSize:13, color:'var(--text2)' }}>{fmtTime(e.time)}</span>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <button type="button" onClick={() => { setAddingEntry(false); setSelectedStudent(e.name) }}
+                            style={{ fontSize:11, padding:'3px 8px', borderRadius:6, border:'1px solid var(--accent)', background:'rgba(79,126,248,0.08)', color:'var(--accent)', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                            수정
+                          </button>
+                          <span style={{ fontSize:13, color:'var(--text2)' }}>{fmtTime(e.time)}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
