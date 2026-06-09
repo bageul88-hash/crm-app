@@ -208,8 +208,9 @@ export default function App() {
               </button>
             </>
           )}
-          <button type="button" className="header-btn header-btn-logout" onClick={logout}>
-            로그아웃
+          <button type="button" className="header-btn header-btn-branch" onClick={logout}>
+            <span>로그</span>
+            <span>아웃</span>
           </button>
           <button type="button" className="refresh-btn" onClick={() => window.location.reload()} title="새로고침">
             ↻
