@@ -86,7 +86,7 @@ export async function handleStudentArrival(studentName, time = null, parentPhone
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         studentFolderName: folderName,
-        attendDate: new Date().toISOString().slice(0, 10),
+        attendDate: (() => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}` })(),
       }),
     })
     const result = await r.json()

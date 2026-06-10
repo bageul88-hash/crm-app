@@ -253,7 +253,7 @@ export function AppProvider({ children }) {
       id: tempId,
       ...payload,
       phone: cleanPhone(payload.phone),
-      savedAt: new Date().toISOString().slice(0, 10),
+      savedAt: (() => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}` })(),
     }
 
     setConsults(prev => {

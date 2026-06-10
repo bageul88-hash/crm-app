@@ -121,9 +121,13 @@ function normalizeDateValue(value) {
   // 이미 정규 형식
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
 
-  // ISO 8601 (UTC 직렬화) — 타임존 오프셋으로 인한 날짜 편차 없이 로컬 날짜 추출
+  // ISO 8601 (UTC 직렬화) — new Date()로 파싱 후 로컬 날짜 추출 (KST 기준)
   if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
-    return str.slice(0, 10)
+    const d = new Date(str)
+    const y = d.getFullYear()
+    const mo = String(d.getMonth() + 1).padStart(2, '0')
+    const dy = String(d.getDate()).padStart(2, '0')
+    return `${y}-${mo}-${dy}`
   }
 
   // 숫자만 추출해 재조합
@@ -142,6 +146,16 @@ function normalizeTimeValue(value) {
 
   if (str.includes('오전') || str.includes('오후')) {
     return str.replace(/\s+/g, ' ')
+  }
+
+  // ISO 8601 (Sheets Time 셀 직렬화) — 로컬 시간으로 변환 (KST 기준)
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    const d = new Date(str)
+    const h = d.getHours()
+    const m = String(d.getMinutes()).padStart(2, '0')
+    const ampm = h < 12 ? '오전' : '오후'
+    const h12 = h % 12 || 12
+    return `${ampm} ${h12}:${m}`
   }
 
   const timeMatch = str.match(/(\d{1,2}):(\d{2})/)
