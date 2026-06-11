@@ -169,7 +169,11 @@ export default function FirstInquiryPage() {
 
   const saveTemplates = list => { setTemplates(list); try { localStorage.setItem(FI_TEMPLATES_KEY, JSON.stringify(list)) } catch {} }
   const saveActiveId = id => { setActiveTemplateId(id); try { localStorage.setItem(FI_ACTIVE_KEY, id ?? '') } catch {} }
-  const selectTemplate = id => saveActiveId(id)
+  const selectTemplate = id => {
+    saveActiveId(id)
+    const moved = [templates.find(t => t.id === id), ...templates.filter(t => t.id !== id)]
+    saveTemplates(moved)
+  }
   const deleteTemplate = id => {
     if (templates.length <= 1) { alert('템플릿은 최소 1개 이상이어야 합니다.'); return }
     if (!window.confirm('이 템플릿을 삭제하시겠습니까?')) return

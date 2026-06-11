@@ -321,7 +321,11 @@ export default function FirstLessonPage() {
     try { localStorage.setItem(FL_ACTIVE_KEY, id ?? '') } catch {}
   }
 
-  const selectTemplate = id => saveActiveId(id)
+  const selectTemplate = id => {
+    saveActiveId(id)
+    const moved = [templates.find(t => t.id === id), ...templates.filter(t => t.id !== id)]
+    saveTemplates(moved)
+  }
 
   const deleteTemplate = id => {
     if (templates.length <= 1) { alert('템플릿은 최소 1개 이상이어야 합니다.'); return }
