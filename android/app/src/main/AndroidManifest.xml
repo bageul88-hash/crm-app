@@ -23,8 +23,14 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
 
-    <!-- SMS 발신 (학부모 자동 출석 알림) -->
+    <!-- SMS 발신 (학부모 자동 출석 알림 / 예약 문자) -->
     <uses-permission android:name="android.permission.SEND_SMS" />
+
+    <!-- 예약 문자: 정확한 시간 알람 (Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!-- 예약 문자: 재부팅 후 알람 복구 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- 연락처 (CRM 정보 메모 자동 저장) -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -73,6 +79,24 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- 예약 문자 AlarmManager 수신기 -->
+        <receiver
+            android:name=".SmsSchedulerReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.pentwo.crmapp.SMS_SCHEDULE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 부팅 후 예약 문자 알람 복구 -->
+        <receiver
+            android:name=".SmsBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

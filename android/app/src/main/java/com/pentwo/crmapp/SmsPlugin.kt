@@ -427,6 +427,74 @@ class SmsPlugin : Plugin() {
         }
     }
 
+    // ── 예약 문자 스케줄러 ──────────────────────────────────────────
+
+    @PluginMethod
+    fun scheduleSms(call: PluginCall) {
+        val phone = call.getString("phone") ?: run { call.reject("phone required"); return }
+        val body  = call.getString("body")  ?: run { call.reject("body required");  return }
+        val triggerAtMillis = call.getLong("triggerAtMillis") ?: run { call.reject("triggerAtMillis required"); return }
+        val jobId = call.getString("jobId") ?: run { call.reject("jobId required"); return }
+
+        val job = SmsSchedulerHelper.Job(jobId, phone, body, triggerAtMillis)
+        SmsSchedulerHelper.addJob(context, job)
+        SmsSchedulerHelper.scheduleAlarm(context, job)
+        Log.d("CRM_SCHED", "예약 등록: jobId=$jobId triggerAt=$triggerAtMillis")
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun cancelScheduledSms(call: PluginCall) {
+        val jobId = call.getString("jobId") ?: run { call.reject("jobId required"); return }
+        SmsSchedulerHelper.cancelAlarm(context, jobId)
+        SmsSchedulerHelper.removeJob(context, jobId)
+        Log.d("CRM_SCHED", "예약 취소: jobId=$jobId")
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun getScheduledSms(call: PluginCall) {
+        val jobs = SmsSchedulerHelper.getJobs(context)
+        val arr = JSArray()
+        jobs.forEach { job ->
+            val obj = JSObject()
+            obj.put("jobId",            job.jobId)
+            obj.put("phone",            job.phone)
+            obj.put("body",             job.body)
+            obj.put("triggerAtMillis",  job.triggerAtMillis)
+            arr.put(obj)
+        }
+        val ret = JSObject()
+        ret.put("jobs", arr)
+        call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun checkExactAlarmPermission(call: PluginCall) {
+        val ret = JSObject()
+        ret.put("canSchedule", SmsSchedulerHelper.canScheduleExactAlarms(context))
+        call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun openExactAlarmSettings(call: PluginCall) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                activity.startActivity(intent)
+            } catch (_: Exception) {
+                val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", activity.packageName, null)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                activity.startActivity(fallback)
+            }
+        }
+        call.resolve()
+    }
+
     // "[참바른글씨] OOO 학생이 등원하였습니다" 패턴에서 이름 추출
     // \s*학생이 : 이름과 "학생이" 사이 공백 0개 이상 허용 (공백 없는 경우 포함)
     private fun parseStudentName(body: String): String? {

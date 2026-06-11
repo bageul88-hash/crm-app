@@ -1,8 +1,257 @@
-import { useMemo, useState, useCallback, useRef } from 'react'
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import SearchInput from '../components/SearchInput'
 import dayjs from 'dayjs'
+import { registerPlugin } from '@capacitor/core'
+import { cleanPhone } from '../api/sheets'
+
+const SmsPlugin = registerPlugin('SmsPlugin')
+
+const DEFAULT_SCHED_TMPL =
+  '안녕하세요, 참바른글씨입니다. 😊\n{이름} 학생 예약 안내드립니다.\n📅 {예약일} {예약시간}\n잊지 말고 방문해 주세요!\n감사합니다.'
+const SCHED_TMPL_KEY = 'crm_schedule_sms_template'
+
+function getSchedTmpl() {
+  return localStorage.getItem(SCHED_TMPL_KEY) || DEFAULT_SCHED_TMPL
+}
+
+function fillVars(tmpl, c) {
+  return tmpl
+    .replace(/\{이름\}/g, c.name || '')
+    .replace(/\{예약일\}/g, c.diagDate || '')
+    .replace(/\{예약시간\}/g, c.diagTime || '')
+}
+
+function to24h(timeStr) {
+  if (!timeStr) return ''
+  const m = timeStr.match(/(오전|오후)\s*(\d+):(\d{2})/)
+  if (!m) return timeStr.slice(0, 5) // already HH:mm
+  let h = parseInt(m[2])
+  if (m[1] === '오후' && h !== 12) h += 12
+  if (m[1] === '오전' && h === 12) h = 0
+  return `${String(h).padStart(2, '0')}:${m[3]}`
+}
+
+function fmtTrigger(ms) {
+  const d = new Date(ms)
+  const mo = d.getMonth() + 1
+  const day = d.getDate()
+  const h = d.getHours()
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  const ampm = h < 12 ? '오전' : '오후'
+  const h12 = h % 12 || 12
+  return `${mo}월 ${day}일 ${ampm} ${h12}:${mi}`
+}
+
+const sheetStyle = {
+  position: 'fixed', inset: 0,
+  background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+  display: 'flex', alignItems: 'flex-end',
+}
+const sheetInner = {
+  background: '#fff', borderRadius: '16px 16px 0 0',
+  padding: '20px 16px 36px', width: '100%',
+  maxHeight: '80vh', overflowY: 'auto', boxSizing: 'border-box',
+}
+const btnPrimary = {
+  flex: 1, padding: '11px 0', background: '#2563eb', color: '#fff',
+  border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+}
+const btnCancel = {
+  flex: 1, padding: '11px 0', background: '#f3f4f6', color: '#374151',
+  border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer',
+}
+const inputStyle = {
+  padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 7,
+  fontSize: 14, boxSizing: 'border-box',
+}
+
+function BottomSheet({ onClose, children }) {
+  return (
+    <div style={sheetStyle} onClick={onClose}>
+      <div style={sheetInner} onClick={e => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function SendSmsModal({ c, onClose }) {
+  const phone = c.phone || ''
+  const [body, setBody] = useState(() => fillVars(getSchedTmpl(), c))
+  const [busy, setBusy] = useState(false)
+
+  const doSend = async () => {
+    if (!phone) { alert('전화번호가 없습니다'); return }
+    setBusy(true)
+    try {
+      const perm = await SmsPlugin.requestSendSmsPermission()
+      if (!perm.granted) { alert('문자 발송 권한이 없습니다\n설정에서 SMS 권한을 허용해 주세요'); setBusy(false); return }
+      await SmsPlugin.sendSms({ phone, body })
+      alert('발송 완료')
+      onClose()
+    } catch {
+      alert('발송 실패')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 2 }}>문자 보내기</div>
+      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
+        {c.name} · {phone || '전화번호 없음'}
+      </div>
+      <textarea
+        value={body}
+        onChange={e => setBody(e.target.value)}
+        rows={7}
+        style={{ ...inputStyle, width: '100%', resize: 'none', fontFamily: 'inherit', lineHeight: 1.65 }}
+      />
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button onClick={onClose} style={btnCancel}>취소</button>
+        <button onClick={doSend} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.7 : 1 }}>
+          {busy ? '발송 중...' : '발송'}
+        </button>
+      </div>
+    </BottomSheet>
+  )
+}
+
+function ScheduleSmsModal({ c, onClose, todayStr }) {
+  const phone = c.phone || ''
+  const [jobs, setJobs] = useState([])
+  const [loadingJobs, setLoadingJobs] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [newDate, setNewDate] = useState(c.diagDate || todayStr)
+  const [newTime, setNewTime] = useState(() => to24h(c.diagTime || ''))
+  const [newBody, setNewBody] = useState(() => fillVars(getSchedTmpl(), c))
+  const [saving, setSaving] = useState(false)
+
+  const loadJobs = useCallback(async () => {
+    try {
+      const result = await SmsPlugin.getScheduledSms()
+      const cp = cleanPhone(phone)
+      setJobs((result.jobs || []).filter(j => cleanPhone(j.phone) === cp))
+    } catch {}
+    setLoadingJobs(false)
+  }, [phone])
+
+  useEffect(() => { loadJobs() }, [loadJobs])
+
+  const doAdd = async () => {
+    if (!newDate || !newTime) { alert('날짜와 시간을 선택하세요'); return }
+    if (!phone) { alert('전화번호가 없습니다'); return }
+    setSaving(true)
+    try {
+      const perm = await SmsPlugin.checkExactAlarmPermission()
+      if (!perm.canSchedule) {
+        const go = window.confirm(
+          '정확한 시간에 발송하려면 시스템 설정에서\n"알람 및 리마인더" 권한이 필요합니다.\n\n설정으로 이동할까요?'
+        )
+        if (go) await SmsPlugin.openExactAlarmSettings()
+        setSaving(false)
+        return
+      }
+      const triggerAtMillis = new Date(`${newDate}T${newTime}:00`).getTime()
+      if (triggerAtMillis <= Date.now()) { alert('과거 시간은 설정할 수 없습니다'); setSaving(false); return }
+      const jobId = `${c.id}_${Date.now()}`
+      await SmsPlugin.scheduleSms({ phone, body: newBody, triggerAtMillis, jobId })
+      setAdding(false)
+      await loadJobs()
+    } catch {
+      alert('예약 등록 실패')
+    }
+    setSaving(false)
+  }
+
+  const doCancel = async (jobId) => {
+    if (!window.confirm('이 예약 문자를 취소할까요?')) return
+    try {
+      await SmsPlugin.cancelScheduledSms({ jobId })
+      await loadJobs()
+    } catch { alert('취소 실패') }
+  }
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 2 }}>예약 문자</div>
+      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
+        {c.name} · {phone || '전화번호 없음'}
+      </div>
+
+      {loadingJobs ? (
+        <div style={{ color: '#9ca3af', fontSize: 13, marginBottom: 12 }}>불러오는 중...</div>
+      ) : (
+        <>
+          {jobs.length === 0 && !adding && (
+            <div style={{ color: '#9ca3af', fontSize: 13, marginBottom: 12 }}>예약된 문자가 없습니다</div>
+          )}
+          {jobs.map(job => (
+            <div key={job.jobId} style={{
+              border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px',
+              marginBottom: 8, background: '#fafafa',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', marginBottom: 4 }}>
+                {fmtTrigger(job.triggerAtMillis)}
+              </div>
+              <div style={{ fontSize: 12, color: '#4b5563', whiteSpace: 'pre-line', lineHeight: 1.5 }}>
+                {job.body.length > 80 ? job.body.slice(0, 80) + '...' : job.body}
+              </div>
+              <button
+                onClick={() => doCancel(job.jobId)}
+                style={{ marginTop: 8, fontSize: 11, color: '#ef4444', background: '#fff', border: '1px solid #fecaca', borderRadius: 5, padding: '3px 10px', cursor: 'pointer' }}
+              >
+                취소
+              </button>
+            </div>
+          ))}
+
+          {adding ? (
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <input type="date" value={newDate} min={todayStr}
+                  onChange={e => setNewDate(e.target.value)}
+                  style={{ ...inputStyle, flex: 1 }} />
+                <input type="time" value={newTime}
+                  onChange={e => setNewTime(e.target.value)}
+                  style={{ ...inputStyle, flex: 1 }} />
+              </div>
+              <textarea
+                value={newBody}
+                onChange={e => setNewBody(e.target.value)}
+                rows={5}
+                style={{ ...inputStyle, width: '100%', resize: 'none', fontFamily: 'inherit', lineHeight: 1.6 }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button onClick={() => setAdding(false)} style={btnCancel}>취소</button>
+                <button onClick={doAdd} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
+                  {saving ? '등록 중...' : '등록'}
+                </button>
+              </div>
+            </div>
+          ) : jobs.length < 3 ? (
+            <button
+              onClick={() => setAdding(true)}
+              style={{
+                width: '100%', padding: '10px 0', marginBottom: 10,
+                border: '2px dashed #d1d5db', borderRadius: 8,
+                color: '#2563eb', background: 'none', fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              + 예약 추가
+            </button>
+          ) : (
+            <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 10 }}>예약은 최대 3개까지 가능합니다</div>
+          )}
+
+          <button onClick={onClose} style={{ ...btnCancel, width: '100%' }}>닫기</button>
+        </>
+      )}
+    </BottomSheet>
+  )
+}
 
 const RESULT_COLOR = {
   미등록: '#9CA3AF', 연결: '#3B82F6', 펑크: '#EF4444',
@@ -15,6 +264,8 @@ export default function SchedulePage() {
   const today = dayjs().format('YYYY-MM-DD')
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState(0)
+  const [sendModal, setSendModal] = useState(null)   // { c }
+  const [schedModal, setSchedModal] = useState(null) // { c }
   const scrollRef = useRef(null)
   const isTabScrolling = useRef(false)
   const activeTabRef = useRef(0)
@@ -126,6 +377,29 @@ export default function SchedulePage() {
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}>{c.feature}</div>
       )}
+      {/* SMS 버튼 */}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
+        <button
+          onClick={() => setSendModal({ c })}
+          style={{
+            flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 600,
+            color: '#2563eb', background: '#eff6ff',
+            border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer',
+          }}
+        >
+          문자 보내기
+        </button>
+        <button
+          onClick={() => setSchedModal({ c })}
+          style={{
+            flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 600,
+            color: '#7c3aed', background: '#f5f3ff',
+            border: '1px solid #ddd6fe', borderRadius: 6, cursor: 'pointer',
+          }}
+        >
+          예약 문자
+        </button>
+      </div>
     </div>
   )
 
@@ -165,6 +439,12 @@ export default function SchedulePage() {
 
   return (
     <div>
+      {sendModal && (
+        <SendSmsModal c={sendModal.c} onClose={() => setSendModal(null)} />
+      )}
+      {schedModal && (
+        <ScheduleSmsModal c={schedModal.c} onClose={() => setSchedModal(null)} todayStr={today} />
+      )}
       <div style={{ padding: '16px 16px 0' }}>
         <SearchInput value={search} onChange={setSearch} style={{ marginBottom: 12 }} />
       </div>
