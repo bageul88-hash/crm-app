@@ -33,7 +33,24 @@
       "Bash(where java *)",
       "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; Set-Location \"E:\\\\crm-app\\\\android\"; .\\\\gradlew.bat assembleRelease 2>&1)",
       "Bash(curl -s \"https://crm-app-sj7m.onrender.com\")",
-      "Bash(git -C \"E:\\\\crm-app\" log --oneline -3)"
+      "Bash(git -C \"E:\\\\crm-app\" log --oneline -3)",
+      "Bash(git -C /e/crm-app log --oneline -3)",
+      "Bash(git -C /e/crm-app show --stat HEAD)",
+      "Bash(git -C /e/crm-app log --oneline -20)",
+      "Bash(git -C /e/crm-app diff 62530bd 496be99 -- src/context/AppContext.jsx src/api/sheets.js src/pages/FirstLessonPage.jsx src/pages/SmsReservationPage.jsx)",
+      "Bash(git -C /e/crm-app show 832fce5:src/api/sheets.js)",
+      "Bash(node -e ' *)",
+      "Bash(git -C /e/crm-app show 832fce5 --stat)",
+      "Bash(git -C /e/crm-app diff a1745cf 832fce5 -- src/api/sheets.js src/context/AppContext.jsx)",
+      "Bash(git -C /e/crm-app diff 62530bd 496be99 -- src/pages/FirstLessonPage.jsx)",
+      "Bash(git -C /e/crm-app diff 62530bd 496be99 -- src/pages/SmsReservationPage.jsx)",
+      "Bash(git -C /e/crm-app show b6e9623 -- src/pages/FirstLessonPage.jsx)",
+      "Bash(git -C /e/crm-app show b6e9623 -- src/pages/FirstInquiryPage.jsx)",
+      "Bash(git -C /e/crm-app log --oneline a1745cf..496be99)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew assembleDebug)",
+      "Bash(git checkout *)",
+      "Bash(grep -v \"//\\\\|import\\\\|smsPhone\\\\|resolvedPhone\\\\|newEntry\\\\|navigate\\\\|state:\")",
+      "Bash(grep -v \"^.*:.*//\\\\|smsPhone\\\\|resolvedPhone\")"
     ]
   }
 }

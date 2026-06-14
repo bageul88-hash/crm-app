@@ -282,12 +282,11 @@ export default function AttendancePage() {
                 <tr>
                   <th style={TH}>이름</th>
                   <th style={TH}>등원시간</th>
-                  <th style={{ ...TH, width:36, textAlign:'center' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {todayList.length === 0
-                  ? <tr><td colSpan={3} style={{ padding:'32px 16px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
+                  ? <tr><td colSpan={2} style={{ padding:'32px 16px', textAlign:'center', color:'var(--text3)', fontSize:13 }}>
                       {loadingToday ? 'SMS를 읽어오는 중...' : '오늘 등원한 학생이 없습니다.'}
                     </td></tr>
                   : todayList.map((e,i) => (
@@ -300,26 +299,13 @@ export default function AttendancePage() {
                       style={{ userSelect:'none' }}
                     >
                       <td style={td()}>
-                        <span style={{ marginRight:6 }}>{e.name}</span>
+                        <span style={{ marginRight:6, fontWeight:600 }}>{e.name}</span>
                         <span onClick={() => setSelectedStudent(e.name)}
                           style={{ fontSize:11, color:'#3b82f6', fontWeight:600, cursor:'pointer' }}>
                           총 출석 {studentTotals[e.name] || 0}회
                         </span>
                       </td>
                       <td style={td({ color:'var(--text2)' })}>{fmtTime(e.time)}</td>
-                      <td style={td({ textAlign:'center', padding:'4px' })}>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(e)}
-                          style={{
-                            width:26, height:26, borderRadius:'50%', border:'none',
-                            background:'#fee2e2', color:'#dc2626',
-                            fontSize:13, fontWeight:700, cursor:'pointer',
-                            display:'inline-flex', alignItems:'center', justifyContent:'center',
-                            lineHeight:1,
-                          }}
-                        >✕</button>
-                      </td>
                     </tr>
                   ))
                 }

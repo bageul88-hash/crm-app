@@ -40,7 +40,21 @@ function isTarget(n) {
 }
 
 function loadSmsHistory() {
-  try { return JSON.parse(localStorage.getItem(SMS_HISTORY_KEY) || '[]') } catch { return [] }
+  try {
+    const raw = JSON.parse(localStorage.getItem(SMS_HISTORY_KEY) || '[]')
+    const sorted = [...raw].sort((a, b) => (b.sentAt || '').localeCompare(a.sentAt || ''))
+    const seen = new Set()
+    const deduped = sorted.filter(h => {
+      if (!h.phone) return true
+      if (seen.has(h.phone)) return false
+      seen.add(h.phone)
+      return true
+    })
+    if (deduped.length !== raw.length) {
+      try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(deduped)) } catch {}
+    }
+    return deduped
+  } catch { return [] }
 }
 
 function normName(s) {
@@ -213,13 +227,6 @@ export default function SmsReservationPage() {
           return cn.includes(nameNorm) || nameNorm.includes(cn)
         })
       }
-      if (allMatches.length === 0 && attendPhone) {
-        allMatches = consults.filter(c => {
-          const cPhone = String(c.phone || '').replace(/[^0-9]/g, '')
-          return cPhone && cPhone === attendPhone
-        })
-      }
-
       // 여러 기록이 있을 때 최신 기록(id 최대값) 기준으로 현재 상태 판단
       const latestConsult = allMatches.length > 0
         ? allMatches.reduce((best, c) => Number(c.id) > Number(best.id) ? c : best)
@@ -253,7 +260,7 @@ export default function SmsReservationPage() {
       )
 
       // 전화번호: CRM 매칭 → 출석기록 phone 필드 → 없음 순으로 폴백
-      const rawPhone = latestConsult?.phone || attendPhone || ''
+      const rawPhone = latestConsult?.phone || ''
 
       // 해당 학생의 가장 오래된 문자 발송일
       const studentHist = hist.filter(h => normName(h.studentName) === nameNorm)
@@ -309,11 +316,7 @@ export default function SmsReservationPage() {
     try { localStorage.setItem(SMS_ACTIVE_KEY, id ?? '') } catch {}
   }
 
-  const selectTemplate = id => {
-    saveActiveId(id)
-    const moved = [templates.find(t => t.id === id), ...templates.filter(t => t.id !== id)]
-    saveTemplates(moved)
-  }
+  const selectTemplate = id => saveActiveId(id)
 
   const deleteTemplate = id => {
     if (templates.length <= 1) { alert('템플릿은 최소 1개 이상이어야 합니다.'); return }
@@ -391,10 +394,11 @@ export default function SmsReservationPage() {
       totalCount: cur.totalCount,
       sentAt: new Date().toISOString(),
     }
-    const updated = [...history, newEntry]
-    try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
-    setHistory(updated)
-
+    if (!newEntry.phone || !history.some(h => h.phone === newEntry.phone)) {
+      const updated = [...history, newEntry]
+      try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+      setHistory(updated)
+    }
     if (queueIdx + 1 >= queue.length) {
       setPhase('list')
       setSelected(new Set())
@@ -469,7 +473,7 @@ export default function SmsReservationPage() {
             </span>
           </div>
           <div style={{ fontSize: 14, color: 'var(--text2)', fontWeight: 500 }}>
-            📱 {cur.phoneDisplay || cur.phone || '번호 없음'}
+            📱 {cur.phone || '번호 없음'}
           </div>
         </div>
 
@@ -655,9 +659,11 @@ export default function SmsReservationPage() {
                           onClick={e => {
                             e.stopPropagation()
                             const newEntry = { id: `done_${Date.now()}`, studentName: s.name, phone: s.phone, totalCount: s.totalCount, sentAt: new Date().toISOString() }
-                            const updated = [...history, newEntry]
-                            try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
-                            setHistory(updated)
+                            if (!newEntry.phone || !history.some(h => h.phone === newEntry.phone)) {
+                              const updated = [...history, newEntry]
+                              try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+                              setHistory(updated)
+                            }
                             setStudents(prev => prev.filter(st => st.id !== s.id))
                           }}
                           style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #d1d5db', background: '#f3f4f6', color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
@@ -675,7 +681,7 @@ export default function SmsReservationPage() {
                           총 {s.totalCount}회 출석
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--text3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          📱 {s.phoneDisplay || s.phone || '번호 없음'}
+                          📱 {s.phone || '번호 없음'}
                         </div>
                         <button
                           type="button"
@@ -852,12 +858,23 @@ export default function SmsReservationPage() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                     <span style={{ fontSize: 15, fontWeight: 700 }}>{h.studentName}</span>
-                    <span style={{
-                      fontSize: 11, padding: '2px 9px', borderRadius: 20,
-                      background: '#d1fae5', color: '#065f46', fontWeight: 700,
-                    }}>
-                      총 {h.totalCount}회 발송
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{
+                        fontSize: 11, padding: '2px 9px', borderRadius: 20,
+                        background: '#d1fae5', color: '#065f46', fontWeight: 700,
+                      }}>
+                        총 {h.totalCount}회 발송
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = history.filter(x => x.id !== h.id)
+                          try { localStorage.setItem(SMS_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+                          setHistory(updated)
+                        }}
+                        style={{ padding: '2px 7px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff1f2', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      >삭제</button>
+                    </div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text3)' }}>
                     총 {h.totalCount}회 · {fmtDateTime(h.sentAt)}
@@ -928,7 +945,7 @@ export default function SmsReservationPage() {
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-                    {s.phoneDisplay || s.phone || '번호 없음'}
+                    {s.phone || '번호 없음'}
                   </div>
                 </div>
               ))}

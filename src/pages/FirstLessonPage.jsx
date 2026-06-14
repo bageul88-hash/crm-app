@@ -221,13 +221,6 @@ export default function FirstLessonPage() {
           return cn.includes(nameNorm) || nameNorm.includes(cn)
         })
       }
-      if (allMatches.length === 0 && attendPhone) {
-        allMatches = consults.filter(c => {
-          const cPhone = String(c.phone || '').replace(/[^0-9]/g, '')
-          return cPhone && cPhone === attendPhone
-        })
-      }
-
       const latestConsult = allMatches.length > 0
         ? allMatches.reduce((best, c) => Number(c.id) > Number(best.id) ? c : best)
         : null
@@ -235,7 +228,7 @@ export default function FirstLessonPage() {
       // 수업종료 학생은 제외
       if (latestConsult?.category === '수업종료') continue
 
-      const rawPhone = latestConsult?.phone || attendPhone || ''
+      const rawPhone = latestConsult?.phone || ''
 
       const attendanceDates = []
       for (const [dateKey, list] of Object.entries(records)) {
@@ -321,11 +314,7 @@ export default function FirstLessonPage() {
     try { localStorage.setItem(FL_ACTIVE_KEY, id ?? '') } catch {}
   }
 
-  const selectTemplate = id => {
-    saveActiveId(id)
-    const moved = [templates.find(t => t.id === id), ...templates.filter(t => t.id !== id)]
-    saveTemplates(moved)
-  }
+  const selectTemplate = id => saveActiveId(id)
 
   const deleteTemplate = id => {
     if (templates.length <= 1) { alert('템플릿은 최소 1개 이상이어야 합니다.'); return }
@@ -478,7 +467,7 @@ export default function FirstLessonPage() {
             </span>
           </div>
           <div style={{ fontSize: 14, color: 'var(--text2)', fontWeight: 500 }}>
-            📱 {cur.phoneDisplay || cur.phone || '번호 없음'}
+            📱 {cur.phone || '번호 없음'}
           </div>
         </div>
 
@@ -585,25 +574,26 @@ export default function FirstLessonPage() {
       {tab === 'pending' && (
         <div style={{ padding: 16 }}>
           {/* 제목 + 불러오기 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-            <div style={{ fontSize: 15, fontWeight: 800 }}>첫수업 안내</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>첫수업 안내</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                총 출석 1회 해당 학생 자동 조회
+              </div>
+            </div>
             <button
               type="button"
               onClick={handleImport}
               disabled={importing}
               style={{
-                fontSize: 12, padding: '5px 11px', borderRadius: 8,
+                fontSize: 13, padding: '7px 13px', borderRadius: 9,
                 border: '1px solid var(--accent)', background: 'rgba(79,126,248,0.08)',
                 color: importing ? '#9ca3af' : 'var(--accent)',
                 cursor: importing ? 'not-allowed' : 'pointer', fontWeight: 700,
-                whiteSpace: 'nowrap',
               }}
             >
               {importing ? '불러오는 중...' : '불러오기'}
             </button>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>
-            총 출석 1회 해당 학생 자동 조회
           </div>
 
           {students.length === 0 ? (
@@ -613,23 +603,23 @@ export default function FirstLessonPage() {
             </div>
           ) : (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <button
                   type="button"
                   onClick={toggleAll}
                   style={{
-                    fontSize: 12, color: 'var(--accent)', background: 'none',
-                    border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0, whiteSpace: 'nowrap',
+                    fontSize: 13, color: 'var(--accent)', background: 'none',
+                    border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0,
                   }}
                 >
                   {selected.size === students.length ? '전체 해제' : '전체 선택'}
                 </button>
-                <span style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 13, color: 'var(--text3)' }}>
                   {selected.size > 0 ? `${selected.size}명 선택됨` : `총 ${students.length}명`}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {students.map(s => {
                   const isSelected = selected.has(s.id)
                   return (
@@ -637,91 +627,143 @@ export default function FirstLessonPage() {
                       key={s.id}
                       onClick={() => toggleSelect(s.id)}
                       style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
                         background: isSelected ? 'rgba(79,126,248,0.06)' : '#fff',
                         border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                        borderRadius: 12, padding: '9px 12px', cursor: 'pointer',
+                        borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
                         transition: 'border-color 0.15s, background 0.15s',
                       }}
                     >
-                      {/* 1행: 체크박스 + 이름 + 문자보내기 + 발송완료 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap' }}>
-                        <div style={{
-                          width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                          border: `2px solid ${isSelected ? 'var(--accent)' : '#d1d5db'}`,
-                          background: isSelected ? 'var(--accent)' : '#fff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'background 0.15s, border-color 0.15s',
-                        }}>
-                          {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                      {/* 체크박스 */}
+                      <div style={{
+                        width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                        border: `2px solid ${isSelected ? 'var(--accent)' : '#d1d5db'}`,
+                        background: isSelected ? 'var(--accent)' : '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}>
+                        {isSelected && (
+                          <span style={{ color: '#fff', fontSize: 12, fontWeight: 900, lineHeight: 1 }}>✓</span>
+                        )}
+                      </div>
+
+                      {/* 학생 정보 */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 16, fontWeight: 700 }}>{s.name}</span>
                         </div>
-                        <span style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                        <div
+                          onClick={e => { e.stopPropagation(); setAttendanceModal(s) }}
+                          style={{
+                            fontSize: 12, color: 'var(--accent)', marginTop: 3,
+                            cursor: 'pointer', textDecoration: 'underline', fontWeight: 600,
+                            display: 'inline-block',
+                          }}
+                        >
+                          총 {s.totalCount}회 출석
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+                          📱 {s.phone || '번호 없음'}
+                        </div>
+                      </div>
+
+                      {/* 버튼 영역 */}
+                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
+                        {/* 문자보내기 */}
                         <button
                           type="button"
                           onClick={e => {
                             e.stopPropagation()
                             if (!s.phone) { alert('전화번호가 없습니다.'); return }
-                            const body = activeBody.replace(/{학생이름}/g, s.name).replace(/{N}/g, s.totalCount)
+                            const body = activeBody
+                              .replace(/{학생이름}/g, s.name)
+                              .replace(/{N}/g, s.totalCount)
                             window.location.href = `sms:${s.phone}?body=${encodeURIComponent(body)}`
                           }}
-                          style={{ padding: '4px 10px', borderRadius: 7, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8,
+                            border: 'none', background: 'var(--accent)',
+                            color: '#fff', fontSize: 12, fontWeight: 700,
+                            cursor: 'pointer', whiteSpace: 'nowrap',
+                          }}
                         >
                           문자보내기
                         </button>
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation()
-                            const newEntry = { id: `done_${Date.now()}`, studentName: s.name, phone: s.phone, totalCount: s.totalCount, sentAt: new Date().toISOString() }
-                            const updated = [...history, newEntry]
-                            try { localStorage.setItem(FL_HISTORY_KEY, JSON.stringify(updated)) } catch {}
-                            setHistory(updated)
-                            persistSentName(s.name)
-                            setStudents(prev => prev.filter(st => st.id !== s.id))
-                          }}
-                          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #d1d5db', background: '#f3f4f6', color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                        >
-                          발송완료
-                        </button>
-                      </div>
+                        {/* 발송완료 + 수정 */}
+                        <div style={{ display: 'flex', gap: 5 }}>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation()
+                              const newEntry = {
+                                id: `done_${Date.now()}`,
+                                studentName: s.name,
+                                phone: s.phone,
+                                totalCount: s.totalCount,
+                                sentAt: new Date().toISOString(),
+                              }
+                              const updated = [...history, newEntry]
+                              try { localStorage.setItem(FL_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+                              setHistory(updated)
+                              persistSentName(s.name)
+                              setStudents(prev => prev.filter(st => st.id !== s.id))
+                            }}
+                            style={{
+                              padding: '6px 10px', borderRadius: 8,
+                              border: '1px solid #d1d5db', background: '#f3f4f6',
+                              color: 'var(--text3)', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}
+                          >
+                            발송완료
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async e => {
+                              e.stopPropagation()
 
-                      {/* 2행: 총 N회 출석 + 전화번호 + 수정 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, paddingLeft: 25, flexWrap: 'nowrap' }}>
-                        <div
-                          onClick={e => { e.stopPropagation(); setAttendanceModal(s) }}
-                          style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600, whiteSpace: 'nowrap' }}
-                        >
-                          총 {s.totalCount}회 출석
+                              let resolvedPhone = s.phone
+                              if (!resolvedPhone) {
+                                const { phone: smsPhone, found } =
+                                  await searchPhoneByStudentName(s.name)
+                                if (found) resolvedPhone = smsPhone
+                              }
+
+                              const goEdit = (id) => {
+                                const extra = resolvedPhone && resolvedPhone !== s.phone
+                                  ? { state: { phone: resolvedPhone } }
+                                  : undefined
+                                navigate(`/input/${id}?returnTo=/first-lesson`, extra)
+                              }
+
+                              if (s.consultId) { goEdit(s.consultId); return }
+
+                              const nameNorm = normName(s.name)
+                              const phone = resolvedPhone
+
+                              const found =
+                                contextConsults.find(c => normName(c.name) === nameNorm) ||
+                                contextConsults.find(c => normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name))) ||
+                                (phone && contextConsults.find(c =>
+                                  String(c.phone || '').replace(/[^0-9]/g, '') === phone
+                                ))
+
+                              if (found) { goEdit(found.id); return }
+
+                              navigate('/input', {
+                                state: { phone: resolvedPhone || '' },
+                              })
+                            }}
+                            style={{
+                              padding: '6px 10px', borderRadius: 8,
+                              border: '1px solid var(--border)', background: '#f3f4f6',
+                              color: 'var(--text2)', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            수정
+                          </button>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          📱 {s.phoneDisplay || s.phone || '번호 없음'}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={async e => {
-                            e.stopPropagation()
-                            let resolvedPhone = s.phone
-                            if (!resolvedPhone) {
-                              const { phone: smsPhone, found } = await searchPhoneByStudentName(s.name)
-                              if (found) resolvedPhone = smsPhone
-                            }
-                            const goEdit = (id) => {
-                              const extra = resolvedPhone && resolvedPhone !== s.phone ? { state: { phone: resolvedPhone } } : undefined
-                              navigate(`/input/${id}?returnTo=/first-lesson`, extra)
-                            }
-                            if (s.consultId) { goEdit(s.consultId); return }
-                            const nameNorm = normName(s.name)
-                            const phone = resolvedPhone
-                            const found =
-                              contextConsults.find(c => normName(c.name) === nameNorm) ||
-                              contextConsults.find(c => normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name))) ||
-                              (phone && contextConsults.find(c => String(c.phone || '').replace(/[^0-9]/g, '') === phone))
-                            if (found) { goEdit(found.id); return }
-                            navigate('/input', { state: { phone: resolvedPhone || '' } })
-                          }}
-                          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid var(--border)', background: '#f3f4f6', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                        >
-                          수정
-                        </button>
                       </div>
                     </div>
                   )
@@ -940,7 +982,7 @@ export default function FirstLessonPage() {
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-                    {s.phoneDisplay || s.phone || '번호 없음'}
+                    {s.phone || '번호 없음'}
                   </div>
                 </div>
               ))}
