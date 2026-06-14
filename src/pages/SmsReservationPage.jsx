@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { filterByTab } from '../api/sheets'
 import { searchPhoneByStudentName } from '../hooks/useSmsAttendance'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
@@ -58,7 +59,7 @@ function loadSmsHistory() {
 }
 
 function normName(s) {
-  return String(s ?? '').replace(/\s+/g, '').toLowerCase()
+  return String(s ?? '').replace(/\*.*$/, '').replace(/\s+/g, '').toLowerCase()
 }
 
 const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
@@ -193,7 +194,8 @@ export default function SmsReservationPage() {
     const phoneMap = {}
     Object.values(records).forEach(list => {
       ;(list || []).forEach(entry => {
-        const name = typeof entry === 'string' ? entry : entry?.name
+        const raw = typeof entry === 'string' ? entry : entry?.name
+        const name = raw ? String(raw).replace(/\*.*$/, '').trim() : null
         if (name) {
           totals[name] = (totals[name] || 0) + 1
           // 실시간 SMS 감지 시 저장된 phone 필드 활용
@@ -224,6 +226,7 @@ export default function SmsReservationPage() {
       if (allMatches.length === 0) {
         allMatches = consults.filter(c => {
           const cn = normName(c.name)
+          if (!cn || /^\d+$/.test(cn)) return false  // 순수 숫자 CRM 이름 오매칭 방지
           return cn.includes(nameNorm) || nameNorm.includes(cn)
         })
       }
@@ -570,8 +573,8 @@ export default function SmsReservationPage() {
       {/* ── 대기 목록 탭 ── */}
       {tab === 'pending' && (
         <div style={{ padding: 16 }}>
-          {/* 제목 + 불러오기 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          {/* 제목 + 불러오기 + 수업중 카운트 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <div style={{ fontSize: 15, fontWeight: 800 }}>재결재 요청</div>
             <button
               type="button"
@@ -585,6 +588,9 @@ export default function SmsReservationPage() {
             >
               불러오기
             </button>
+            <span style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
+              수업중 {filterByTab(contextConsults, '수업중').length}
+            </span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>
             총 출석 20회 ~ 26회 해당 학생 자동 조회
@@ -701,7 +707,7 @@ export default function SmsReservationPage() {
                             const phone = resolvedPhone
                             const found =
                               contextConsults.find(c => normName(c.name) === nameNorm) ||
-                              contextConsults.find(c => normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name))) ||
+                              contextConsults.find(c => { const cn = normName(c.name); return cn && !/^\d+$/.test(cn) && (cn.includes(nameNorm) || nameNorm.includes(cn)) }) ||
                               (phone && contextConsults.find(c => String(c.phone || '').replace(/[^0-9]/g, '') === phone))
                             if (found) { goEdit(found.id); return }
                             navigate('/input', { state: { phone: resolvedPhone || '', inquiryDate: s.firstSmsDate || '' } })

@@ -61,7 +61,7 @@ function persistSentName(name) {
 }
 
 function normName(s) {
-  return String(s ?? '').replace(/\s+/g, '').toLowerCase()
+  return String(s ?? '').replace(/\*.*$/, '').replace(/\s+/g, '').toLowerCase()
 }
 
 const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
@@ -194,7 +194,8 @@ export default function FirstLessonPage() {
     const phoneMap = {}
     Object.values(records).forEach(list => {
       ;(list || []).forEach(entry => {
-        const name = typeof entry === 'string' ? entry : entry?.name
+        const raw = typeof entry === 'string' ? entry : entry?.name
+        const name = raw ? String(raw).replace(/\*.*$/, '').trim() : null
         if (name) {
           totals[name] = (totals[name] || 0) + 1
           if (typeof entry === 'object' && entry?.phone && !phoneMap[name]) {
@@ -218,6 +219,7 @@ export default function FirstLessonPage() {
       if (allMatches.length === 0) {
         allMatches = consults.filter(c => {
           const cn = normName(c.name)
+          if (!cn || /^\d+$/.test(cn)) return false  // 순수 숫자 CRM 이름 오매칭 방지
           return cn.includes(nameNorm) || nameNorm.includes(cn)
         })
       }
@@ -743,7 +745,7 @@ export default function FirstLessonPage() {
 
                               const found =
                                 contextConsults.find(c => normName(c.name) === nameNorm) ||
-                                contextConsults.find(c => normName(c.name).includes(nameNorm) || nameNorm.includes(normName(c.name))) ||
+                                contextConsults.find(c => { const cn = normName(c.name); return cn && !/^\d+$/.test(cn) && (cn.includes(nameNorm) || nameNorm.includes(cn)) }) ||
                                 (phone && contextConsults.find(c =>
                                   String(c.phone || '').replace(/[^0-9]/g, '') === phone
                                 ))
