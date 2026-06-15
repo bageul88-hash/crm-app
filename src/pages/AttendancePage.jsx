@@ -138,10 +138,23 @@ export default function AttendancePage() {
     return () => clearInterval(timer)
   }, [tab, importAllSms])
 
-  // ── 출석 삭제 ──
-  const startPress = useCallback((entry) => {
+  // ── 출석 삭제 (롱프레스) ──
+  const startPos = useRef({ x: 0, y: 0 })
+
+  const startPress = useCallback((entry, ev) => {
+    if (ev?.touches?.[0]) {
+      startPos.current = { x: ev.touches[0].clientX, y: ev.touches[0].clientY }
+    }
     pressTimer.current = setTimeout(() => setDeleteTarget(entry), 600)
   }, [])
+
+  const movePress = useCallback((ev) => {
+    if (!ev.touches?.[0]) return
+    const dx = Math.abs(ev.touches[0].clientX - startPos.current.x)
+    const dy = Math.abs(ev.touches[0].clientY - startPos.current.y)
+    if (dx > 10 || dy > 10) clearTimeout(pressTimer.current)
+  }, [])
+
   const endPress = useCallback(() => {
     clearTimeout(pressTimer.current)
   }, [])
@@ -294,8 +307,10 @@ export default function AttendancePage() {
                       onMouseDown={() => startPress(e)}
                       onMouseUp={endPress}
                       onMouseLeave={endPress}
-                      onTouchStart={() => startPress(e)}
+                      onTouchStart={(ev) => startPress(e, ev)}
+                      onTouchMove={movePress}
                       onTouchEnd={endPress}
+                      onTouchCancel={endPress}
                       style={{ userSelect:'none' }}
                     >
                       <td style={td()}>
