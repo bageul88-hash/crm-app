@@ -74,12 +74,21 @@ export async function handleStudentArrival(studentName, time = null, parentPhone
 
   // 3. 구글 드라이브 폴더 이동 (출석 체크 완료 후 서버 호출)
   try {
-    const students = JSON.parse(localStorage.getItem('attendance_students') || '[]')
-    const student = students.find(s => s.name === studentName) || { name: studentName }
-    const folderName = student.folderName ||
-      (student.age && student.grade && student.registerDate
-        ? `${student.age}세 ${student.name} ${student.grade}학년 ${student.registerDate}`
-        : studentName)
+    // CRM 캐시(Sheets API)에서 학생 데이터 조회 → "${age}세 ${name} ${registerDate}" 형식
+    // registerDate = savedAt (YYYY-MM-DD → 대시 제거 → 8자리)
+    let folderName = studentName
+    try {
+      const cache = JSON.parse(localStorage.getItem('crm_consults_cache') || '[]')
+      const match = cache.find(c => String(c.name || '').trim() === String(studentName).trim())
+      if (match) {
+        const ageNum = String(match.age || '').replace(/세$/, '').trim()
+        const dateStr = String(match.savedAt || '').replace(/-/g, '').trim()
+        if (ageNum && dateStr.length === 8) {
+          folderName = `${ageNum}세 ${studentName} ${dateStr}`
+        }
+      }
+    } catch {}
+    console.log('[Drive] folderName:', folderName)
 
     const r = await fetch('https://crm-app-sj7m.onrender.com/api/attendance', {
       method: 'POST',
