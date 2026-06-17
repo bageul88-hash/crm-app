@@ -158,6 +158,19 @@ function deleteRow(data) {
   return respond({ status: 'OK' });
 }
 
+function normDate(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    var y = val.getFullYear();
+    var m = String(val.getMonth() + 1).padStart(2, '0');
+    var d = String(val.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
+  var s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return s;
+}
+
 function searchByPhone(lastFour, branchId) {
   if (!lastFour || String(lastFour).length !== 4) {
     return respond({ success: false, error: 'lastFour 4자리 필수' });
@@ -169,11 +182,16 @@ function searchByPhone(lastFour, branchId) {
   var phoneCol    = headerMap['전화번호'];
   var branchIdCol = headerMap['branchId'];
   var nameCol     = headerMap['이름'];
+  var ageCol      = headerMap['나이'];
+  var savedAtCol  = headerMap['저장시각'];
+  var genderCol   = headerMap['남여'];
+  var featureCol  = headerMap['특징'];
   if (phoneCol === undefined || nameCol === undefined) {
     return respond({ success: false, error: '머리글에서 전화번호/이름 열을 찾을 수 없습니다.' });
   }
   var lastCol = sheet.getLastColumn();
   var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var matches = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
     var phone       = cleanPhone(row[phoneCol]);
@@ -182,8 +200,22 @@ function searchByPhone(lastFour, branchId) {
     if (name.indexOf('__config__') === 0) continue;
     if (phone.slice(-4) === String(lastFour) &&
         rowBranchId === String(branchId || '').trim()) {
-      return respond({ success: true, name: name, parentPhone: phone });
+      matches.push({
+        name:        name,
+        parentPhone: phone,
+        age:         ageCol     !== undefined ? String(row[ageCol]     || '').replace(/세$/, '').trim() : '',
+        savedAt:     savedAtCol !== undefined ? normDate(row[savedAtCol]) : '',
+        gender:      genderCol  !== undefined ? String(row[genderCol]  || '').trim() : '',
+        feature:     featureCol !== undefined ? String(row[featureCol] || '').trim() : '',
+      });
     }
   }
-  return respond({ success: false });
+  if (matches.length === 0) return respond({ success: false });
+  // 구 버전 클라이언트 호환: 단일 name/parentPhone 필드도 유지
+  return respond({
+    success:     true,
+    students:    matches,
+    name:        matches[0].name,
+    parentPhone: matches[0].parentPhone,
+  });
 }
