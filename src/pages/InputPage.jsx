@@ -368,10 +368,12 @@ export default function InputPage() {
       return
     }
 
-    const exists = consults.some(c => cleanPhone(c.phone) === phoneText)
+    const exists = consults.some(
+      c => cleanPhone(c.phone) === phoneText && String(c.name || '').trim() === String(form.name || '').trim()
+    )
 
     if (exists) {
-      setMsg('❌ 이미 등록된 상담입니다. 기존 상담을 수정해주세요.')
+      setMsg('❌ 동일한 이름+전화번호로 이미 등록된 상담입니다. 기존 상담을 수정해주세요.')
       return
     }
 
