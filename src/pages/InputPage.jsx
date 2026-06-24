@@ -363,8 +363,9 @@ export default function InputPage() {
       saveContactMemo(payload)
         .then(r => !r?.skipped && showContactMsg('✅ 연락처 메모 업데이트 완료'))
         .catch(() => showContactMsg('⚠️ 연락처 저장 실패'))
-      const returnTo = new URLSearchParams(location.search).get('returnTo') || '/'
-      navigate(returnTo, { replace: true })
+      // 수정 후 문자팝업 열기 — payload(방금 바꾼 diagDate/diagTime/category/relation 포함)를
+      // 그대로 넘기면 SmsModal이 종류 자동선택 + 날짜·시간 자동반영 (자동발송 아님, 미리보기 후 수동 발송)
+      setSmsConsult({ ...payload, id: Number(form.id || id) })
       return
     }
 
@@ -607,7 +608,7 @@ export default function InputPage() {
           style={{ flex: 2 }}
           onClick={handleSubmit}
         >
-          {isEdit ? '수정 완료' : '저장 후 문자보내기'}
+          {isEdit ? '수정 후 문자보내기' : '저장 후 문자보내기'}
         </button>
       </div>
 
