@@ -349,21 +349,21 @@ export default function FirstInquiryPage() {
                 {students.map(s => {
                   const isSelected = selected.has(s.id)
                   return (
-                    <div key={s.id} onClick={() => toggleSelect(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: isSelected ? 'rgba(79,126,248,0.06)' : '#fff', border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 12, padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}>
-                      <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSelected ? 'var(--accent)' : '#d1d5db'}`, background: isSelected ? 'var(--accent)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, border-color 0.15s' }}>
-                        {isSelected && <span style={{ color: '#fff', fontSize: 12, fontWeight: 900, lineHeight: 1 }}>✓</span>}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 700 }}>{s.name}</div>
-                        {s.inquiryDate && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>문의일: {s.inquiryDate}</div>}
-                        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>📱 {s.phone || '번호 없음'}</div>
-                      </div>
-                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
-                        <button type="button" onClick={e => { e.stopPropagation(); if (!s.phone) { alert('전화번호가 없습니다.'); return }; const body = activeBody.replace(/{학생이름}/g, s.name).replace(/{N}/g, ''); window.location.href = `sms:${s.phone}?body=${encodeURIComponent(body)}` }} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>문자보내기</button>
-                        <div style={{ display: 'flex', gap: 5 }}>
-                          <button type="button" onClick={e => { e.stopPropagation(); const newEntry = { id: `done_${Date.now()}`, studentName: s.name, phone: s.phone, sentAt: new Date().toISOString() }; const updated = [...history, newEntry]; try { localStorage.setItem(FI_HISTORY_KEY, JSON.stringify(updated)) } catch {}; setHistory(updated); persistSentName(s.name); setStudents(prev => prev.filter(st => st.id !== s.id)) }} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #d1d5db', background: '#f3f4f6', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>발송완료</button>
-                          <button type="button" onClick={e => { e.stopPropagation(); if (s.consultId) navigate(`/input/${s.consultId}?returnTo=/first-inquiry`); else navigate('/input', { state: { phone: s.phone || '' } }) }} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: '#f3f4f6', color: 'var(--text2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>수정</button>
+                    <div key={s.id} onClick={() => toggleSelect(s.id)} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: isSelected ? 'rgba(79,126,248,0.06)' : '#fff', border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 12, padding: '10px 12px', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}>
+                      {/* 1행: 체크박스 + 이름 + 문자보내기 + 발송완료 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap' }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${isSelected ? 'var(--accent)' : '#d1d5db'}`, background: isSelected ? 'var(--accent)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, border-color 0.15s' }}>
+                          {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
                         </div>
+                        <span style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                        <button type="button" onClick={e => { e.stopPropagation(); if (!s.phone) { alert('전화번호가 없습니다.'); return }; const body = activeBody.replace(/{학생이름}/g, s.name).replace(/{N}/g, ''); window.location.href = `sms:${s.phone}?body=${encodeURIComponent(body)}` }} style={{ padding: '4px 10px', borderRadius: 7, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>문자보내기</button>
+                        <button type="button" onClick={e => { e.stopPropagation(); const newEntry = { id: `done_${Date.now()}`, studentName: s.name, phone: s.phone, sentAt: new Date().toISOString() }; const updated = [...history, newEntry]; try { localStorage.setItem(FI_HISTORY_KEY, JSON.stringify(updated)) } catch {}; setHistory(updated); persistSentName(s.name); setStudents(prev => prev.filter(st => st.id !== s.id)) }} style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #d1d5db', background: '#f3f4f6', color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>발송완료</button>
+                      </div>
+                      {/* 2행: 문의일 + 전화 + 수정 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, paddingLeft: 25, flexWrap: 'nowrap' }}>
+                        {s.inquiryDate && <div style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap', flexShrink: 0 }}>문의일: {s.inquiryDate}</div>}
+                        <div style={{ fontSize: 11, color: 'var(--text3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📱 {s.phone || '번호 없음'}</div>
+                        <button type="button" onClick={e => { e.stopPropagation(); if (s.consultId) navigate(`/input/${s.consultId}?returnTo=/first-inquiry`); else navigate('/input', { state: { phone: s.phone || '' } }) }} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)', background: '#f3f4f6', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>수정</button>
                       </div>
                     </div>
                   )

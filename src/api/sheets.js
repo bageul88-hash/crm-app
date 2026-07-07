@@ -53,7 +53,7 @@ export function filterByTab(list, tab) {
 
 export const OPTIONS = {
   category: ['문의', '예약', '수업중', '수업종료'],
-  age: Array.from({ length: 75 }, (_, i) => `${i + 6}세`),
+  age: Array.from({ length: 75 }, (_, i) => `${String(i + 6).padStart(2, '0')}세`),
   gender: ['남', '여'],
   diagTime: [
     '오전 8:00', '오전 8:30',

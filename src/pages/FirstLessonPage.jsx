@@ -90,9 +90,20 @@ function fmtDateTime(iso) {
   return `${mo}/${day} ${ampm} ${h % 12 || 12}:${String(m).padStart(2, '0')}`
 }
 
-function SortableTemplateItem({ tpl, isActive, onSelect, onEdit, onDelete }) {
+// 템플릿 본문 치환(모든 발송/미리보기 공통) — {학생이름}/{이름}/{학생명}/{name} → 이름, {N} → 출석횟수.
+// ★ 이름 없으면 이름 placeholder 원문 유지(빈칸 방지). 변형 표기·내부 공백도 흡수.
+function fillTemplate(body, name, n) {
+  let out = String(body || '')
+  if (name) out = out.replace(/\{\s*(?:학생이름|이름|학생명|name)\s*\}/g, name)
+  if (n != null && n !== '') out = out.replace(/\{\s*N\s*\}/g, String(n))
+  return out
+}
+
+function SortableTemplateItem({ tpl, isActive, onSelect, onEdit, onDelete, previewName, previewN }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: tpl.id })
+  // 사용중 템플릿이면 미리보기에 실시간 치환(체크 첫 학생 샘플). 체크 0명이면 이름 원문 유지.
+  const previewBody = isActive ? fillTemplate(tpl.body, previewName, previewN) : tpl.body
   return (
     <div
       ref={setNodeRef}
@@ -154,7 +165,7 @@ function SortableTemplateItem({ tpl, isActive, onSelect, onEdit, onDelete }) {
         whiteSpace: 'pre-line', overflow: 'hidden',
         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
       }}>
-        {tpl.body}
+        {previewBody}
       </div>
     </div>
   )
@@ -205,6 +216,17 @@ export default function FirstLessonPage() {
       })
     })
 
+    // 최근 2개월 이내 "첫 수업"(=1회 출석)만 노출. 첫 수업일 = 그 1회 출석 날짜(YYYYMMDD).
+    const cutoff = new Date()
+    cutoff.setMonth(cutoff.getMonth() - 2)
+    cutoff.setHours(0, 0, 0, 0)
+    const parseYmd = (v) => {
+      const digits = String(v || '').replace(/[^0-9]/g, '')
+      if (digits.length < 8) return null
+      const dt = new Date(+digits.slice(0, 4), +digits.slice(4, 6) - 1, +digits.slice(6, 8))
+      return isNaN(dt.getTime()) ? null : dt
+    }
+
     const result = []
     for (const [name, count] of Object.entries(totals)) {
       // 첫수업: 정확히 1회 출석
@@ -245,6 +267,10 @@ export default function FirstLessonPage() {
         })
       }
       attendanceDates.sort((a, b) => b.dateKey.localeCompare(a.dateKey))
+
+      // 첫 수업일(1회 출석 날짜)이 최근 2개월 이내가 아니면 숨김 (이 탭에만 적용)
+      const firstClassDate = parseYmd(attendanceDates[0]?.dateKey)
+      if (!firstClassDate || firstClassDate < cutoff) continue
 
       result.push({
         id: `${name}_${count}`,
@@ -379,9 +405,7 @@ export default function FirstLessonPage() {
 
   const handleOpenSms = () => {
     if (!cur) return
-    const body = activeBody
-      .replace(/{학생이름}/g, cur.name)
-      .replace(/{N}/g, cur.totalCount)
+    const body = fillTemplate(activeBody, cur.name, cur.totalCount)
     window.location.href = `sms:${cur.phone}?body=${encodeURIComponent(body)}`
     setSmsOpened(true)
   }
@@ -428,9 +452,7 @@ export default function FirstLessonPage() {
 
   // ── 발송 진행 화면 ──
   if (phase === 'sending' && cur) {
-    const bodyPreview = activeBody
-      .replace(/{학생이름}/g, cur.name)
-      .replace(/{N}/g, cur.totalCount)
+    const bodyPreview = fillTemplate(activeBody, cur.name, cur.totalCount)
     const isLast = queueIdx + 1 >= queue.length
 
     return (
@@ -629,143 +651,112 @@ export default function FirstLessonPage() {
                       key={s.id}
                       onClick={() => toggleSelect(s.id)}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
+                        display: 'flex', flexDirection: 'column', gap: 5,
                         background: isSelected ? 'rgba(79,126,248,0.06)' : '#fff',
                         border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                        borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
+                        borderRadius: 12, padding: '10px 12px', cursor: 'pointer',
                         transition: 'border-color 0.15s, background 0.15s',
                       }}
                     >
-                      {/* 체크박스 */}
-                      <div style={{
-                        width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                        border: `2px solid ${isSelected ? 'var(--accent)' : '#d1d5db'}`,
-                        background: isSelected ? 'var(--accent)' : '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'background 0.15s, border-color 0.15s',
-                      }}>
-                        {isSelected && (
-                          <span style={{ color: '#fff', fontSize: 12, fontWeight: 900, lineHeight: 1 }}>✓</span>
-                        )}
-                      </div>
-
-                      {/* 학생 정보 */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 16, fontWeight: 700 }}>{s.name}</span>
+                      {/* 1행: 체크박스 + 이름 + 문자보내기 + 발송완료 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap' }}>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                          border: `2px solid ${isSelected ? 'var(--accent)' : '#d1d5db'}`,
+                          background: isSelected ? 'var(--accent)' : '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'background 0.15s, border-color 0.15s',
+                        }}>
+                          {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
                         </div>
-                        <div
-                          onClick={e => { e.stopPropagation(); setAttendanceModal(s) }}
-                          style={{
-                            fontSize: 12, color: 'var(--accent)', marginTop: 3,
-                            cursor: 'pointer', textDecoration: 'underline', fontWeight: 600,
-                            display: 'inline-block',
-                          }}
-                        >
-                          총 {s.totalCount}회 출석
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-                          📱 {s.phone || '번호 없음'}
-                        </div>
-                      </div>
-
-                      {/* 버튼 영역 */}
-                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
-                        {/* 문자보내기 */}
+                        <span style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
                         <button
                           type="button"
                           onClick={e => {
                             e.stopPropagation()
                             if (!s.phone) { alert('전화번호가 없습니다.'); return }
-                            const body = activeBody
-                              .replace(/{학생이름}/g, s.name)
-                              .replace(/{N}/g, s.totalCount)
+                            const body = fillTemplate(activeBody, s.name, s.totalCount)
                             window.location.href = `sms:${s.phone}?body=${encodeURIComponent(body)}`
                           }}
-                          style={{
-                            padding: '6px 14px', borderRadius: 8,
-                            border: 'none', background: 'var(--accent)',
-                            color: '#fff', fontSize: 12, fontWeight: 700,
-                            cursor: 'pointer', whiteSpace: 'nowrap',
-                          }}
+                          style={{ padding: '4px 10px', borderRadius: 7, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
                         >
                           문자보내기
                         </button>
-                        {/* 발송완료 + 수정 */}
-                        <div style={{ display: 'flex', gap: 5 }}>
-                          <button
-                            type="button"
-                            onClick={e => {
-                              e.stopPropagation()
-                              const newEntry = {
-                                id: `done_${Date.now()}`,
-                                studentName: s.name,
-                                phone: s.phone,
-                                totalCount: s.totalCount,
-                                sentAt: new Date().toISOString(),
-                              }
-                              const updated = [...history, newEntry]
-                              try { localStorage.setItem(FL_HISTORY_KEY, JSON.stringify(updated)) } catch {}
-                              setHistory(updated)
-                              persistSentName(s.name)
-                              setStudents(prev => prev.filter(st => st.id !== s.id))
-                            }}
-                            style={{
-                              padding: '6px 10px', borderRadius: 8,
-                              border: '1px solid #d1d5db', background: '#f3f4f6',
-                              color: 'var(--text3)', fontSize: 12, fontWeight: 600,
-                              cursor: 'pointer', whiteSpace: 'nowrap',
-                            }}
-                          >
-                            발송완료
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async e => {
-                              e.stopPropagation()
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation()
+                            const newEntry = {
+                              id: `done_${Date.now()}`,
+                              studentName: s.name,
+                              phone: s.phone,
+                              totalCount: s.totalCount,
+                              sentAt: new Date().toISOString(),
+                            }
+                            const updated = [...history, newEntry]
+                            try { localStorage.setItem(FL_HISTORY_KEY, JSON.stringify(updated)) } catch {}
+                            setHistory(updated)
+                            persistSentName(s.name)
+                            setStudents(prev => prev.filter(st => st.id !== s.id))
+                          }}
+                          style={{ padding: '4px 8px', borderRadius: 7, border: '1px solid #d1d5db', background: '#f3f4f6', color: 'var(--text3)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          발송완료
+                        </button>
+                      </div>
 
-                              let resolvedPhone = s.phone
-                              if (!resolvedPhone) {
-                                const { phone: smsPhone, found } =
-                                  await searchPhoneByStudentName(s.name)
-                                if (found) resolvedPhone = smsPhone
-                              }
-
-                              const goEdit = (id) => {
-                                const extra = resolvedPhone && resolvedPhone !== s.phone
-                                  ? { state: { phone: resolvedPhone } }
-                                  : undefined
-                                navigate(`/input/${id}?returnTo=/first-lesson`, extra)
-                              }
-
-                              if (s.consultId) { goEdit(s.consultId); return }
-
-                              const nameNorm = normName(s.name)
-                              const phone = resolvedPhone
-
-                              const found =
-                                contextConsults.find(c => normName(c.name) === nameNorm) ||
-                                contextConsults.find(c => { const cn = normName(c.name); return cn && !/^\d+$/.test(cn) && (cn.includes(nameNorm) || nameNorm.includes(cn)) }) ||
-                                (phone && contextConsults.find(c =>
-                                  String(c.phone || '').replace(/[^0-9]/g, '') === phone
-                                ))
-
-                              if (found) { goEdit(found.id); return }
-
-                              navigate('/input', {
-                                state: { phone: resolvedPhone || '' },
-                              })
-                            }}
-                            style={{
-                              padding: '6px 10px', borderRadius: 8,
-                              border: '1px solid var(--border)', background: '#f3f4f6',
-                              color: 'var(--text2)', fontSize: 12, fontWeight: 600,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            수정
-                          </button>
+                      {/* 2행: 출석 + 전화번호 + 수정 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, paddingLeft: 25, flexWrap: 'nowrap' }}>
+                        <div
+                          onClick={e => { e.stopPropagation(); setAttendanceModal(s) }}
+                          style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600, whiteSpace: 'nowrap' }}
+                        >
+                          총 {s.totalCount}회 출석
                         </div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          📱 {s.phone || '번호 없음'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async e => {
+                            e.stopPropagation()
+
+                            let resolvedPhone = s.phone
+                            if (!resolvedPhone) {
+                              const { phone: smsPhone, found } =
+                                await searchPhoneByStudentName(s.name)
+                              if (found) resolvedPhone = smsPhone
+                            }
+
+                            const goEdit = (id) => {
+                              const extra = resolvedPhone && resolvedPhone !== s.phone
+                                ? { state: { phone: resolvedPhone } }
+                                : undefined
+                              navigate(`/input/${id}?returnTo=/first-lesson`, extra)
+                            }
+
+                            if (s.consultId) { goEdit(s.consultId); return }
+
+                            const nameNorm = normName(s.name)
+                            const phone = resolvedPhone
+
+                            const found =
+                              contextConsults.find(c => normName(c.name) === nameNorm) ||
+                              contextConsults.find(c => { const cn = normName(c.name); return cn && !/^\d+$/.test(cn) && (cn.includes(nameNorm) || nameNorm.includes(cn)) }) ||
+                              (phone && contextConsults.find(c =>
+                                String(c.phone || '').replace(/[^0-9]/g, '') === phone
+                              ))
+
+                            if (found) { goEdit(found.id); return }
+
+                            navigate('/input', {
+                              state: { phone: resolvedPhone || '' },
+                            })
+                          }}
+                          style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)', background: '#f3f4f6', color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          수정
+                        </button>
                       </div>
                     </div>
                   )
@@ -802,6 +793,8 @@ export default function FirstLessonPage() {
                       key={tpl.id}
                       tpl={tpl}
                       isActive={tpl.id === activeTemplateId}
+                      previewName={selectedStudents[0]?.name}
+                      previewN={selectedStudents[0]?.totalCount}
                       onSelect={() => selectTemplate(tpl.id)}
                       onEdit={() => setTplForm({ id: tpl.id, title: tpl.title, body: tpl.body })}
                       onDelete={() => deleteTemplate(tpl.id)}

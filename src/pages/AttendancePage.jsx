@@ -257,6 +257,32 @@ export default function AttendancePage() {
     return map
   }, [records])
 
+  // 이름 → 나이("NN세") 조인 (crm_consults_cache). 동명이인은 첫 값.
+  // ※ 출석 이력 레코드엔 나이·전화가 없어 이름으로만 조인 (사용자 확정). "세"로 끝나는 값만 배지 표시.
+  const ageByName = useMemo(() => {
+    const m = {}
+    try {
+      const cache = JSON.parse(localStorage.getItem('crm_consults_cache') || '[]')
+      cache.forEach(c => {
+        const nm = String(c?.name || '').trim()
+        const age = String(c?.age || '').trim()
+        if (nm && age && !(nm in m)) m[nm] = age
+      })
+    } catch {}
+    return m
+  }, [])
+
+  // 이름 옆 나이 배지 — 값이 "세"로 끝날 때만 렌더(비표준/빈값은 생략)
+  const renderAgeBadge = (name) => {
+    const age = ageByName[name]
+    if (!age || !String(age).endsWith('세')) return null
+    return (
+      <span style={{ marginLeft: 4, padding: '1px 7px', fontSize: 11, fontWeight: 600, color: '#2563eb', background: '#eef4ff', borderRadius: 999, whiteSpace: 'nowrap' }}>
+        {age}
+      </span>
+    )
+  }
+
   return (
     <div className="fade-in" style={{ padding: '16px 16px 32px' }}>
 
@@ -314,13 +340,14 @@ export default function AttendancePage() {
                       style={{ userSelect:'none' }}
                     >
                       <td style={td()}>
-                        <span style={{ marginRight:6, fontWeight:600 }}>{e.name}</span>
+                        <span style={{ marginRight:6, fontWeight:600, fontSize:13, whiteSpace:'nowrap' }}>{e.name}</span>
+                        {renderAgeBadge(e.name)}
                         <span onClick={() => setSelectedStudent(e.name)}
-                          style={{ fontSize:11, color:'#3b82f6', fontWeight:600, cursor:'pointer' }}>
+                          style={{ fontSize:11, color:'#3b82f6', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
                           총 출석 {studentTotals[e.name] || 0}회
                         </span>
                       </td>
-                      <td style={td({ color:'var(--text2)' })}>{fmtTime(e.time)}</td>
+                      <td style={td({ color:'var(--text2)', whiteSpace:'nowrap', fontSize:13 })}>{fmtTime(e.time)}</td>
                     </tr>
                   ))
                 }
@@ -529,20 +556,21 @@ export default function AttendancePage() {
                   </div>
                   <div style={{ padding:'4px 0' }}>
                     {entries.map((e,i) => (
-                      <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 16px', borderBottom: i < entries.length-1 ? '1px solid #f3f4f6' : 'none' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <span style={{ fontSize:14, fontWeight:600, color:'var(--text)' }}>{e.name}</span>
+                      <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'nowrap', gap:4, padding:'6px 11px', borderBottom: i < entries.length-1 ? '1px solid #f3f4f6' : 'none' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:4, minWidth:0 }}>
+                          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)', whiteSpace:'nowrap', flexShrink:0 }}>{e.name}</span>
+                          {renderAgeBadge(e.name)}
                           <span onClick={() => setSelectedStudent(e.name)}
                             style={{ fontSize:11, color:'#3b82f6', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
                             총 출석 {studentTotals[e.name] || 0}회
                           </span>
                         </div>
-                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>
                           <button type="button" onClick={() => { setAddingEntry(false); setSelectedStudent(e.name) }}
-                            style={{ fontSize:11, padding:'3px 8px', borderRadius:6, border:'1px solid var(--accent)', background:'rgba(79,126,248,0.08)', color:'var(--accent)', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                            style={{ fontSize:10, padding:'2px 6px', minWidth:36, flexShrink:0, textAlign:'center', borderRadius:6, border:'1px solid var(--accent)', background:'rgba(79,126,248,0.08)', color:'var(--accent)', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                             수정
                           </button>
-                          <span style={{ fontSize:13, color:'var(--text2)' }}>{fmtTime(e.time)}</span>
+                          <span style={{ fontSize:11, color:'var(--text2)', whiteSpace:'nowrap' }}>{fmtTime(e.time)}</span>
                         </div>
                       </div>
                     ))}

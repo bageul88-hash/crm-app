@@ -90,6 +90,9 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete, attend
         <div className="consult-info">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{c.name || '(이름없음)'}</span>
+            {c.age && (
+              <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{formatAge(c.age)}</span>
+            )}
             {(c.category === '재결재완료' || c.diagResult === '재결재완료') && (
               <span style={{
                 background: '#4CAF50', color: '#fff',
@@ -108,11 +111,11 @@ export default function ConsultCard({ consult, onClick, onEdit, onDelete, attend
           </h3>
           <p className="consult-phone">
             {phone}
-            {c.age ? ` · ${formatAge(c.age)}` : ''}
+            {c.gender ? ` · ${c.gender}` : ''}
           </p>
-          {(c.gender || c.relation) && (
+          {c.relation && (
             <p className="consult-meta">
-              {[c.gender, c.relation].filter(Boolean).join(' · ')}
+              {c.relation}
             </p>
           )}
         </div>
