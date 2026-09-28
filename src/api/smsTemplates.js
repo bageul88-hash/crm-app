@@ -30,6 +30,12 @@ const INTRO_FULL_BODY = `대한민국 최다! 방송사 소개
 const INTRO_FULL = `참바른글씨
 ${INTRO_FULL_BODY}`
 
+// 학생 문의 전용 — 16만부 (타이틀 줄 없음)
+const INTRO_ASK_STUDENT_BODY = `대한민국 최다! 방송사 소개
+최다저서.조선일보사,길벗출판사,등
+또박또박 예쁜글씨(길벗) 16만부 판매 돌파 저자
+전국17곳 캠퍼스 본사 대표 직강`
+
 const INTRO_EXAM = `참바른글씨
 대한민국 최다! 방송사 소개
 최다저서.조선일보사,길벗출판사,등
@@ -121,8 +127,8 @@ pentwo.com`,
   // ── 학생 문의 ──────────────────────────────
   '문의_학생': {
     label: '학생 문의',
-    body: (v) => `학생 문의 안내
-${INTRO_FULL}
+    body: (v) => `참바른글씨 학생 문의 안내
+${INTRO_ASK_STUDENT_BODY}
 
 ♡상담 예약 필수♡
 
