@@ -1,16 +1,17 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { CATEGORY_TABS, filterByTab, cleanPhone } from '../api/sheets'
+import { CATEGORY_TABS, filterByTab, cleanPhone, isTrialName } from '../api/sheets'
 import { readMmsHistory, normalizeMmsPhone } from '../hooks/useSmsAttendance'
 import ConsultCard from '../components/ConsultCard'
 import { useAttendanceTotals } from '../hooks/useAttendanceTotals'
 import AttendanceHistoryModal from '../components/AttendanceHistoryModal'
 
 // 탭 순서 재정의: 수업종료·핑크·환불·미등록·연결·가맹·전체
-const MAIN_TABS = ['예약', '문의', '수업중']
+// '예약'은 하단탭으로 이동. 맨 앞 '문자대상' 칩은 클릭 시 /sms(문자대상 페이지)로 이동하는 링크형 칩.
+const MAIN_TABS = ['문자대상', '문의', '수업중']
 // 서브탭: 가맹 바로 옆(뒤)에 전체 고정
-const SUB_TABS = ['수업종료', '펑크', '크레임', '환불', '미등록', '연결', '가맹', '재결재완료', '전체', '📷 이미지']
+const SUB_TABS = ['수업종료', '펑크', '크레임', '환불', '미등록', '연결', '가맹', '재결재완료', '전체', '📷 이미지', '체험단']
 
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
@@ -123,8 +124,8 @@ function MonthlyChart({ consults, tab, onClose }) {
   )
 }
 
-export default function ListPage() {
-  const { consults, loading, error, remove } = useApp()
+export default function ListPage({ initialTab }) {
+  const { consults, loading, error, remove, load } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
   const { totals: attendanceTotals, getFilteredCount } = useAttendanceTotals()
@@ -134,8 +135,9 @@ export default function ListPage() {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [location.key])
 
-  const [tab, setTab] = useState('전체')         // 현재 필터 탭
-  const [selectedTab, setSelectedTab] = useState(null)   // 1클릭 선택(파란 테두리)
+  // initialTab: 예약 하단탭이 '예약' 필터로 진입할 때 사용(라우트별 key로 마운트 분리됨)
+  const [tab, setTab] = useState(initialTab || '전체')         // 현재 필터 탭
+  const [selectedTab, setSelectedTab] = useState(initialTab || null)   // 1클릭 선택(파란 테두리)
   const [chartTab, setChartTab] = useState(null)          // 2클릭 활성(하늘색 + 차트)
 
   // 신규 등록 후 해당 구분 탭으로 자동 이동
@@ -222,7 +224,11 @@ export default function ListPage() {
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      list = list.filter(c =>
+      // 검색 시엔 체험단이 다른 칩에서 제외돼 있어도 계속 검색되도록 후보에 포함
+      const candidates = (tab === '체험단' || tab === '📷 이미지')
+        ? list
+        : [...list, ...consults.filter(isTrialName)]
+      list = candidates.filter(c =>
         String(c.name || '').toLowerCase().includes(q) ||
         String(c.phone || '').includes(q)
       )
@@ -247,6 +253,9 @@ export default function ListPage() {
   }
 
   const handleTabClick = t => {
+    // '문자대상' 칩은 필터가 아니라 문자대상 전용 페이지로 이동하는 링크. (2번클릭 차트 로직 진입 안 함)
+    if (t === '문자대상') { navigate('/sms'); return }
+
     const ref = clickCountRef.current
 
     if (ref.tab === t) {
@@ -288,7 +297,8 @@ export default function ListPage() {
       className={getChipClass(t)}
       onClick={() => handleTabClick(t)}
     >
-      {t}<span>{counts[t] ?? 0}</span>
+      {/* 문자대상 칩은 카운트 의미 없음 → 라벨만. 체험단은 0건이면 배지 숨김. */}
+      {t}{t !== '문자대상' && (t !== '체험단' || counts[t] > 0) && <span>{counts[t] ?? 0}</span>}
     </button>
   )
 
@@ -351,7 +361,19 @@ export default function ListPage() {
 
       <div className="list-scroll-body">
         {loading && <div className="top-loading-bar" />}
-        {error && !loading && <div className="error-box">{error}</div>}
+        {error && !loading && (
+          <div className="error-box" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span>{error}</span>
+            <button
+              onClick={() => load()}
+              style={{
+                background: "#dc2626", color: "#fff", border: "none", borderRadius: 10,
+                padding: "8px 14px", fontSize: 13, fontWeight: 800, cursor: "pointer",
+                fontFamily: "var(--font)", flexShrink: 0,
+              }}
+            >다시 시도</button>
+          </div>
+        )}
         {loading && filtered.length === 0 && (
           <div className="empty-box" style={{ color: 'var(--text3)', fontSize: 13, fontWeight: 500 }}>
             데이터를 불러오는 중입니다...

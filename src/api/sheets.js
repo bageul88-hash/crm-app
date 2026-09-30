@@ -33,22 +33,28 @@ export const CATEGORY_TABS = ['전체', '예약', '문의', '수업중', '수업
 
 const DIAG_ONLY_TABS = ['펑크', '환불', '미등록', '연결', '가맹', '크레임']
 
+// 체험단 판별 — 이름이 "체험단"으로 시작(trim 후). 표시 필터 전용.
+export const isTrialName = (c) => String(c?.name || '').trim().startsWith('체험단')
+
 export function filterByTab(list, tab) {
   if (!Array.isArray(list)) return []
-  if (tab === '전체') return list
-  if (tab === '수업중') return list.filter(c => (c.category === '수업중' || c.diagResult === '등록') && c.category !== '수업종료')
-  if (tab === '펑크')   return list.filter(c => c.diagResult === '펑크')
-  if (tab === '환불')   return list.filter(c => c.diagResult === '환불')
-  if (tab === '크레임')  return list.filter(c => c.diagResult === '크레임' || c.category === '크레임')
-  if (tab === '수업종료') return list.filter(c => c.category === '수업종료')
-  if (tab === '미등록') return list.filter(c => c.diagResult === '미등록')
-  if (tab === '연결')   return list.filter(c => c.diagResult === '연결')
-  if (tab === '가맹')   return list.filter(c => c.diagResult === '가맹' || c.category === '가맹')
-  if (tab === '재결재완료') return list.filter(c => c.diagResult === '재결재완료')
-  if (tab === '수업자료') return list.filter(c => c.hasPhoto === '유')
-  if (tab === '예약')   return list.filter(c => c.category === '예약' && !DIAG_ONLY_TABS.includes(c.diagResult))
-  if (tab === '문의')   return list.filter(c => c.category === '문의' && !['연결', '미등록', '가맹', '크레임'].includes(c.diagResult))
-  return list.filter(c => c.category === tab)
+  if (tab === '체험단') return list.filter(isTrialName)
+  // 체험단은 '체험단' 칩에서만 노출 → 나머지 모든 칩·전체 카운트에서 제외
+  const base = list.filter(c => !isTrialName(c))
+  if (tab === '전체') return base
+  if (tab === '수업중') return base.filter(c => (c.category === '수업중' || c.diagResult === '등록') && c.category !== '수업종료')
+  if (tab === '펑크')   return base.filter(c => c.diagResult === '펑크')
+  if (tab === '환불')   return base.filter(c => c.diagResult === '환불')
+  if (tab === '크레임')  return base.filter(c => c.diagResult === '크레임' || c.category === '크레임')
+  if (tab === '수업종료') return base.filter(c => c.category === '수업종료')
+  if (tab === '미등록') return base.filter(c => c.diagResult === '미등록')
+  if (tab === '연결')   return base.filter(c => c.diagResult === '연결')
+  if (tab === '가맹')   return base.filter(c => c.diagResult === '가맹' || c.category === '가맹')
+  if (tab === '재결재완료') return base.filter(c => c.diagResult === '재결재완료')
+  if (tab === '수업자료') return base.filter(c => c.hasPhoto === '유')
+  if (tab === '예약')   return base.filter(c => c.category === '예약' && !DIAG_ONLY_TABS.includes(c.diagResult))
+  if (tab === '문의')   return base.filter(c => c.category === '문의' && !['연결', '미등록', '가맹', '크레임'].includes(c.diagResult))
+  return base.filter(c => c.category === tab)
 }
 
 export const OPTIONS = {
@@ -211,7 +217,17 @@ function normalizePayload(payload) {
   return next
 }
 
-async function getFromSheet() {
+// ─────────────────────────────────────────────
+// 읽기 요청 자동 재시도
+//   · 조회(GET)에만 적용한다. 저장·수정·삭제 같은 쓰기 요청(postToSheet)에는
+//     절대 붙이지 말 것 — 중복 저장/중복 발송이 생긴다.
+//   · 실패 시 1초 → 3초 간격으로 최대 2회 더 시도(총 3회).
+// ─────────────────────────────────────────────
+const READ_RETRY_DELAYS = [1000, 3000]
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+async function fetchOnce() {
   const res = await fetch(`${APPS_SCRIPT_URL}?action=getAll`)
 
   if (!res.ok) {
@@ -225,6 +241,31 @@ async function getFromSheet() {
   }
 
   return json
+}
+
+async function getFromSheet() {
+  let lastErr
+
+  for (let attempt = 0; attempt <= READ_RETRY_DELAYS.length; attempt++) {
+    try {
+      const json = await fetchOnce()
+      if (attempt > 0) {
+        console.log(`[sheets] 조회 성공 — 재시도 ${attempt}회 만에 복구`)
+      }
+      return json
+    } catch (e) {
+      lastErr = e
+      const delay = READ_RETRY_DELAYS[attempt]
+      console.warn(
+        `[sheets] 조회 실패(${attempt + 1}/${READ_RETRY_DELAYS.length + 1}): ${e?.message || e}`,
+        delay ? `→ ${delay}ms 후 재시도` : '→ 재시도 종료'
+      )
+      if (delay === undefined) break
+      await sleep(delay)
+    }
+  }
+
+  throw lastErr || new Error('데이터를 불러오지 못했습니다')
 }
 
 async function postToSheet(payload, errorMessage) {
