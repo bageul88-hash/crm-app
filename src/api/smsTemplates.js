@@ -46,8 +46,7 @@ const INTRO_RESERVE_BODY = `대한민국 최다! 방송사 소개
 const RESERVE_COMMON = `참바른글씨 진단 및 상담 예약
 ${INTRO_RESERVE_BODY}
 
-{dateKr}
-({day}) {time}
+{schedule}
 
 *테스트.진단.결과 당일상담
 *진단테스트및 필체,습관분석
@@ -84,8 +83,7 @@ export const SMS_TEMPLATES = {
     body: (v) => `학생 진단 및 상담 예약
 ${INTRO_FULL}
 
-{dateKr}
-({day}) {time}
+{schedule}
 
 *준비물*
 평상시 필기한
@@ -291,6 +289,15 @@ export function pickTemplateKey(category, relation) {
 // ─────────────────────────────────────────────
 // 변수 치환 함수
 // ─────────────────────────────────────────────
+// 예약 일시 블록 — 날짜/요일/시간이 하나도 없으면 빈 괄호 "()" 대신 한 줄 안내로 대체
+function buildScheduleBlock(consult, dateKr) {
+  const day  = String(consult.diagDay  || '').trim()
+  const time = String(consult.diagTime || '').trim()
+  const line2 = [day ? `(${day})` : '', time].filter(Boolean).join(' ')
+  const lines = [dateKr || '', line2].filter(Boolean)
+  return lines.length ? lines.join('\n') : '예약 일시 추후 안내'
+}
+
 export function buildSmsBody(templateKey, consult) {
   const tmpl = SMS_TEMPLATES[templateKey]
   if (!tmpl) return ''
@@ -308,6 +315,7 @@ export function buildSmsBody(templateKey, consult) {
   }
 
   return raw
+    .replace(/\{schedule\}/g, buildScheduleBlock(consult, dateKr))
     .replace(/\{dateKr\}/g, dateKr || consult.diagDate || '날짜 미정')
     .replace(/\{date\}/g,   consult.diagDate   || '')
     .replace(/\{day\}/g,    consult.diagDay    || '')
