@@ -60,22 +60,31 @@ export function useFirebaseAttendanceListener() {
         const id   = childSnap.key
         const data = childSnap.val() || {}
 
-        // 앱 시작 전부터 있던 데이터 → 무시
-        if (existingIds.has(id)) return
-
-        // 이미 발송한 항목 → 무시 (중복 방지)
-        if (sentRef.current.has(id)) return
-
         // 공기계는 'name' 필드로 저장, CRM 자체 저장은 'studentName' — 둘 다 지원
         const studentName = data.name || data.studentName
         const { parentPhone, time } = data
 
         if (!studentName) return
 
-        // AttendancePage 오늘 출석 현황 실시간 반영 (firebaseId 포함 → 삭제 기능용)
+        // ── 화면 표시·출석 기록은 항상 수행 ──────────────────────────
+        // 앱이 꺼져 있는 동안 들어온 출석도 화면에서 빠지지 않도록, 아래 dispatch 는
+        // existingIds / sentIds 와 무관하게 항상 보낸다.
+        // (중복은 AttendancePage 의 hasEntry 가 이름·날짜 기준으로 막아 준다)
+        // 학생 목록(상담DB) 매칭은 하지 않으므로 미등록 학생도 그대로 표시된다.
         window.dispatchEvent(new CustomEvent('smsAttendance', {
           detail: { studentName, time: time || null, phone: parentPhone || null, firebaseId: id }
         }))
+
+        // ── 이하 "문자 발송" 판단만 ──────────────────────────────────
+        // 앱 시작 전부터 있던 출석 → 화면에는 띄우되 문자는 보내지 않는다
+        // (뒤늦은 문자 발송 방지). 이 분기가 없으면 과거 출석에 문자가 나간다.
+        if (existingIds.has(id)) {
+          console.log(`[AutoSMS] ${studentName} — 앱 시작 전 출석, 화면만 표시하고 문자는 생략`)
+          return
+        }
+
+        // 이미 발송한 항목 → 문자만 생략 (중복 방지)
+        if (sentRef.current.has(id)) return
 
         // 부모 전화번호 없으면 SMS 발송 안 함
         if (!parentPhone) {
