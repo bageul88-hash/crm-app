@@ -109,13 +109,15 @@ export function useFirebaseAttendanceListener() {
       }))
 
       // ── 이하 "문자 발송" 판단만 ──────────────────────────────
+
+      // 이미 문자가 나간 건 → 조용히 통과 (경고 목록에도 올리지 않는다)
+      if (sentRef.current.has(id)) return
+
       if (existingIds.has(id)) {
         console.log(`[AutoSMS] ${studentName} — 앱 시작 전 출석, 화면만 표시하고 문자는 생략`)
         recordMissed(dateStr, { id, name: studentName, time: time || null, reason: '앱이 꺼져 있던 동안 들어온 출석' })
         return
       }
-
-      if (sentRef.current.has(id)) return
 
       if (!parentPhone) {
         console.log(`[AutoSMS] ${studentName} — parentPhone 없음, 건너뜀`)
