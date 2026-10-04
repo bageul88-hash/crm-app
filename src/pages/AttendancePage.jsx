@@ -4,7 +4,7 @@ import { db } from '../firebase'
 import { readSmsHistory } from '../hooks/useSmsAttendance'
 import SearchInput from '../components/SearchInput'
 import { handleStudentArrival, saveAttendanceToFirebase, buildStudentFolderName, isFullFolderName, requestDriveAttendance, sendArrivalSms } from '../api/firebaseAttendance'
-import { loadMissed } from '../hooks/useFirebaseAttendanceListener'
+import { loadMissed, clearMissed } from '../hooks/useFirebaseAttendanceListener'
 import DatePicker from '../components/DatePicker'
 import { useApp } from '../context/AppContext'
 
@@ -748,12 +748,23 @@ export default function AttendancePage() {
                 ⚠️ 학부모 문자가 안 나간 출석 {missedSms.length}건
               </div>
               {missedSms.map(m => (
-                <div key={m.id} style={{ fontSize:12, color:'#9a3412', lineHeight:1.7 }}>
-                  · {m.name} {m.time || ''} — {m.reason}
+                <div key={m.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'2px 0' }}>
+                  <span style={{ fontSize:12, color:'#9a3412', lineHeight:1.6 }}>
+                    · {m.name} {m.time || ''} — {m.reason}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { clearMissed(TODAY_HYPHEN, m.id); setMissedSms(loadMissed(TODAY_HYPHEN)) }}
+                    style={{
+                      flexShrink:0, fontSize:11, fontWeight:800, padding:'4px 9px', borderRadius:7,
+                      border:'1px solid #c2410c', background:'#fff', color:'#c2410c', cursor:'pointer',
+                      fontFamily:'var(--font)',
+                    }}
+                  >보냄</button>
                 </div>
               ))}
               <div style={{ fontSize:11, color:'#9a3412', marginTop:6, opacity:0.85 }}>
-                문자는 자동으로 다시 보내지 않습니다. 필요하면 직접 보내주세요.
+                자동 재발송은 하지 않습니다. 직접 보내신 뒤에는 [보냄]을 눌러 경고를 내려주세요.
               </div>
             </div>
           )}

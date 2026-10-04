@@ -50,7 +50,8 @@ function recordMissed(dateStr, entry) {
   } catch {}
 }
 
-function clearMissed(dateStr, id) {
+// 수동으로 문자를 보낸 뒤 경고를 내릴 때도 쓴다(화면의 [보냄] 버튼).
+export function clearMissed(dateStr, id) {
   try {
     const list = loadMissed(dateStr).filter(x => x.id !== id)
     localStorage.setItem(missedKey(dateStr), JSON.stringify(list))
