@@ -158,36 +158,61 @@ export default function AttendancePage() {
   // 앱이 꺼져 있었거나 다른 화면에 있던 동안 들어온 출석 보정 —
   // 오늘 정본(attendance/branch_pentwo/날짜)을 읽어 화면·기록에 없는 건만 채운다.
   // ★ 문자는 절대 보내지 않는다(발송은 useFirebaseAttendanceListener 단독 책임).
+  // ★ setRecords 업데이터는 순수하게 유지한다 — 안에서 저장을 호출하면
+  //   업데이터가 두 번 불릴 때 그림자에 중복 레코드가 쌓인다.
   useEffect(() => {
-    get(dbRef(db, `attendance/branch_pentwo/${TODAY_HYPHEN}`))
-      .then(snap => {
-        if (!snap.exists()) return
+    let cancelled = false
+    Promise.all([
+      get(dbRef(db, `attendance/branch_pentwo/${TODAY_HYPHEN}`)),
+      get(dbRef(db, `attendance/${TODAY_STR}`)),
+    ])
+      .then(([mainSnap, shadowSnap]) => {
+        if (cancelled || !mainSnap.exists()) return
+
+        // 이미 그림자에 있는 이름 — 중복 저장 방지
+        const shadowNames = new Set()
+        shadowSnap.forEach(ch => {
+          const nm = (ch.val() || {}).name
+          if (nm) shadowNames.add(nm)
+        })
+
         const items = []
-        snap.forEach(ch => {
+        mainSnap.forEach(ch => {
           const v = ch.val() || {}
           const nm = v.name || v.studentName
           if (nm) items.push({ nm, time: v.time || null, phone: v.parentPhone || null, id: ch.key })
         })
-        if (!items.length) return
+
+        let stored = {}
+        try { stored = JSON.parse(localStorage.getItem('attendance_records') || '{}') } catch {}
+        const todayList = stored[TODAY_STR] || []
+        const missing = items.filter(it =>
+          !hasEntry(todayList, it.nm) && !deletedRef.current.has(delKey(it.nm, TODAY_STR, it.time))
+        )
+        if (!missing.length) return
+
+        // 1) 화면·로컬 기록 (업데이터는 순수)
         setRecords(prev => {
           const next = { ...prev }
-          const added = []
-          items.forEach(({ nm, time, phone, id }) => {
-            if (hasEntry(next[TODAY_STR], nm)) return
-            if (deletedRef.current.has(delKey(nm, TODAY_STR, time))) return
-            next[TODAY_STR] = [...(next[TODAY_STR] || []), { name: nm, time, phone, firebaseId: id }]
-            added.push({ nm, time, phone })
+          const list = [...(next[TODAY_STR] || [])]
+          missing.forEach(({ nm, time, phone, id }) => {
+            if (hasEntry(list, nm)) return
+            list.push({ name: nm, time, phone, firebaseId: id })
           })
-          if (!added.length) return prev
-          localStorage.setItem('attendance_records', JSON.stringify(next))
-          added.forEach(({ nm, time, phone }) => {
-            console.log(`[출석보정] 누락분 채움: ${nm} ${time || ''} (문자 미발송)`)
-            saveAttendanceToFirebase(nm, null, time, phone)
-          })
+          next[TODAY_STR] = list
+          try { localStorage.setItem('attendance_records', JSON.stringify(next)) } catch {}
           return next
+        })
+
+        // 2) 그림자에 없는 것만 1회 저장 (문자 미발송)
+        missing.forEach(({ nm, time, phone }) => {
+          if (shadowNames.has(nm)) return
+          console.log(`[출석보정] 누락분 채움: ${nm} ${time || ''} (문자 미발송)`)
+          saveAttendanceToFirebase(nm, null, time, phone)
         })
       })
       .catch(err => console.warn('[출석보정] 실패:', err?.message))
+    return () => { cancelled = true }
   }, [])
 
   // 오늘 현황용 빠른 로드 (권한 에러 무시 — SMS 실패 시 기존 저장 이력 사용)
