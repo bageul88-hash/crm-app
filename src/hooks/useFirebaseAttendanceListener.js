@@ -1,6 +1,7 @@
-﻿import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { ref, get, onChildAdded } from 'firebase/database'
 import { registerPlugin } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
 import { db } from '../firebase'
 
 const SmsPlugin = registerPlugin('SmsPlugin')
@@ -25,99 +26,169 @@ function saveSentIds(dateStr, set) {
   } catch {}
 }
 
+// ─────────────────────────────────────────────
+// 문자가 "안 나간" 출석을 날짜별로 남긴다.
+//   조용히 지나가면 아무도 모른다 → 출석관리 화면에서 경고로 보여주기 위한 기록.
+//   키: attendance_sms_missed_{YYYY-MM-DD} = [{ id, name, time, reason, at }]
+// ─────────────────────────────────────────────
+export function missedKey(dateStr) { return `attendance_sms_missed_${dateStr}` }
+
+export function loadMissed(dateStr) {
+  try {
+    const raw = localStorage.getItem(missedKey(dateStr))
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr : []
+  } catch { return [] }
+}
+
+function recordMissed(dateStr, entry) {
+  try {
+    const list = loadMissed(dateStr).filter(x => x.id !== entry.id)
+    list.push({ ...entry, at: new Date().toISOString() })
+    localStorage.setItem(missedKey(dateStr), JSON.stringify(list))
+    window.dispatchEvent(new CustomEvent('smsMissedChanged', { detail: { dateStr } }))
+  } catch {}
+}
+
+function clearMissed(dateStr, id) {
+  try {
+    const list = loadMissed(dateStr).filter(x => x.id !== id)
+    localStorage.setItem(missedKey(dateStr), JSON.stringify(list))
+    window.dispatchEvent(new CustomEvent('smsMissedChanged', { detail: { dateStr } }))
+  } catch {}
+}
+
 /**
- * Firebase attendance/branch_pentwo/{YYYY-MM-DD} 경로를 실시간으로 감시하여
- * 앱 시작 이후 새로 추가된 출석에 한해 부모님께 자동 문자를 발송합니다.
+ * Firebase attendance/branch_pentwo/{YYYY-MM-DD} 를 실시간 감시해
+ * 새로 들어온 출석을 화면에 띄우고, 학부모에게 자동 문자를 보낸다.
  *
- * 조건:
- * - parentPhone 값이 있는 출석만 발송
- * - 같은 출석 ID는 단 1회만 발송 (localStorage 기반 중복 방지)
- * - 앱 시작 전 존재하던 데이터는 발송하지 않음
+ * 설계 원칙
+ * - 화면 표시(smsAttendance 이벤트)는 조건 없이 항상 보낸다.
+ *   (앱이 꺼져 있던 사이에 들어온 출석도 화면에서 빠지지 않게)
+ * - 문자 발송은 "앱 시작 이후 새로 들어온 출석"에만 한다.
+ *   (과거 출석에 뒤늦게 문자가 나가는 것을 막기 위함)
+ * - 문자가 나가지 않은 건은 전부 missed 목록에 남겨 화면에서 확인할 수 있게 한다.
+ * - 날짜가 바뀌면 스스로 다음 날 노드로 다시 구독한다(앱 재시작에 기대지 않는다).
  */
 export function useFirebaseAttendanceListener() {
-  const dateStr = todayHyphen()
-  const sentRef = useRef(loadSentIds(dateStr))
   const unsubRef = useRef(null)
+  const dateRef  = useRef(null)
+  const sentRef  = useRef(new Set())
 
   useEffect(() => {
+    let disposed = false
+
     // SEND_SMS 런타임 권한 요청 (Android 6+ 필수 — 실패해도 리스너는 계속 등록)
     SmsPlugin.requestSendSmsPermission()
       .then(r => console.log('[AutoSMS] SEND_SMS 권한:', r?.granted))
       .catch(() => {})
 
-    const attendancePath = `attendance/branch_pentwo/${dateStr}`
-    const attendanceRef  = ref(db, attendancePath)
+    const fmtTime = (t) => {
+      if (!t) return '방금'
+      const [h, m] = String(t).split(':').map(Number)
+      if (isNaN(h)) return t
+      return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(m).padStart(2, '0')}`
+    }
 
-    // Step 1: 앱 시작 시점의 기존 출석 ID 집합을 먼저 수집
-    get(attendanceRef).then(snapshot => {
-      const existingIds = new Set()
-      if (snapshot.exists()) {
-        snapshot.forEach(child => existingIds.add(child.key))
+    const handleChild = (childSnap, existingIds, dateStr) => {
+      if (disposed || dateRef.current !== dateStr) return
+
+      const id   = childSnap.key
+      const data = childSnap.val() || {}
+
+      // 공기계는 'name' 필드로 저장, CRM 자체 저장은 'studentName' — 둘 다 지원
+      const studentName = data.name || data.studentName
+      const { parentPhone, time } = data
+
+      if (!studentName) return
+
+      // ── 화면 표시·출석 기록은 항상 수행 ─────────────────────────
+      // (중복은 AttendancePage 의 hasEntry 가 이름·날짜 기준으로 막아 준다)
+      window.dispatchEvent(new CustomEvent('smsAttendance', {
+        detail: { studentName, time: time || null, phone: parentPhone || null, firebaseId: id }
+      }))
+
+      // ── 이하 "문자 발송" 판단만 ──────────────────────────────
+      if (existingIds.has(id)) {
+        console.log(`[AutoSMS] ${studentName} — 앱 시작 전 출석, 화면만 표시하고 문자는 생략`)
+        recordMissed(dateStr, { id, name: studentName, time: time || null, reason: '앱이 꺼져 있던 동안 들어온 출석' })
+        return
       }
 
-      // Step 2: child_added 리스너 등록 — 기존 ID는 건너뜀
-      unsubRef.current = onChildAdded(attendanceRef, childSnap => {
-        const id   = childSnap.key
-        const data = childSnap.val() || {}
+      if (sentRef.current.has(id)) return
 
-        // 공기계는 'name' 필드로 저장, CRM 자체 저장은 'studentName' — 둘 다 지원
-        const studentName = data.name || data.studentName
-        const { parentPhone, time } = data
+      if (!parentPhone) {
+        console.log(`[AutoSMS] ${studentName} — parentPhone 없음, 건너뜀`)
+        recordMissed(dateStr, { id, name: studentName, time: time || null, reason: '학부모 전화번호 없음' })
+        return
+      }
 
-        if (!studentName) return
+      // 중복 발송 방지를 위해 발송 직전에 기록하고, 실패하면 되돌린다.
+      sentRef.current.add(id)
+      saveSentIds(dateStr, sentRef.current)
 
-        // ── 화면 표시·출석 기록은 항상 수행 ──────────────────────────
-        // 앱이 꺼져 있는 동안 들어온 출석도 화면에서 빠지지 않도록, 아래 dispatch 는
-        // existingIds / sentIds 와 무관하게 항상 보낸다.
-        // (중복은 AttendancePage 의 hasEntry 가 이름·날짜 기준으로 막아 준다)
-        // 학생 목록(상담DB) 매칭은 하지 않으므로 미등록 학생도 그대로 표시된다.
-        window.dispatchEvent(new CustomEvent('smsAttendance', {
-          detail: { studentName, time: time || null, phone: parentPhone || null, firebaseId: id }
-        }))
+      const body = `[참바른글씨] ${studentName} 학생이 ${fmtTime(time)}에 출석하였습니다.`
 
-        // ── 이하 "문자 발송" 판단만 ──────────────────────────────────
-        // 앱 시작 전부터 있던 출석 → 화면에는 띄우되 문자는 보내지 않는다
-        // (뒤늦은 문자 발송 방지). 이 분기가 없으면 과거 출석에 문자가 나간다.
-        if (existingIds.has(id)) {
-          console.log(`[AutoSMS] ${studentName} — 앱 시작 전 출석, 화면만 표시하고 문자는 생략`)
-          return
-        }
+      SmsPlugin.sendSms({ phone: String(parentPhone), body })
+        .then(() => {
+          console.log(`[AutoSMS] 발송 완료 → ${studentName}`)
+          clearMissed(dateStr, id)
+        })
+        .catch(err => {
+          console.error(`[AutoSMS] 발송 실패 → ${studentName}:`, err?.message)
+          // 실패한 건은 다시 시도할 수 있도록 발송기록에서 빼고, 미발송으로 남긴다.
+          sentRef.current.delete(id)
+          saveSentIds(dateStr, sentRef.current)
+          recordMissed(dateStr, { id, name: studentName, time: time || null, reason: `문자 발송 실패 (${err?.message || '원인 미상'})` })
+        })
+    }
 
-        // 이미 발송한 항목 → 문자만 생략 (중복 방지)
-        if (sentRef.current.has(id)) return
+    const subscribe = (dateStr) => {
+      if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
+      dateRef.current = dateStr
+      sentRef.current = loadSentIds(dateStr)
+      console.log('[AutoSMS] 감시 날짜:', dateStr)
 
-        // 부모 전화번호 없으면 SMS 발송 안 함
-        if (!parentPhone) {
-          console.log(`[AutoSMS] ${studentName} — parentPhone 없음, 건너뜀`)
-          return
-        }
+      const attendanceRef = ref(db, `attendance/branch_pentwo/${dateStr}`)
 
-        // 발송 전 ID 기록 (race condition 방지)
-        sentRef.current.add(id)
-        saveSentIds(dateStr, sentRef.current)
+      // Step 1: 구독 시점에 이미 있던 출석 ID 수집 (문자 억제용)
+      get(attendanceRef).then(snapshot => {
+        if (disposed || dateRef.current !== dateStr) return
+        const existingIds = new Set()
+        if (snapshot.exists()) snapshot.forEach(child => existingIds.add(child.key))
 
-        const fmtTime = (t) => {
-          if (!t) return '방금'
-          const [h, m] = String(t).split(':').map(Number)
-          if (isNaN(h)) return t
-          return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(m).padStart(2, '0')}`
-        }
-
-        const body = `[참바른글씨] ${studentName} 학생이 ${fmtTime(time)}에 출석하였습니다.`
-
-        SmsPlugin.sendSms({ phone: String(parentPhone), body })
-          .then(() => console.log(`[AutoSMS] 발송 완료 → ${studentName} (${parentPhone})`))
-          .catch(err => console.error(`[AutoSMS] 발송 실패 → ${studentName}:`, err?.message))
+        // Step 2: child_added 구독
+        unsubRef.current = onChildAdded(attendanceRef, snap => handleChild(snap, existingIds, dateStr))
+      }).catch(err => {
+        console.error('[AutoSMS] 리스너 초기화 실패:', err?.message)
+        // 초기화에 실패하면 다음 점검 때 다시 붙도록 날짜를 비워 둔다.
+        if (dateRef.current === dateStr) dateRef.current = null
       })
-    }).catch(err => {
-      console.error('[AutoSMS] Firebase 리스너 초기화 실패:', err?.message)
-    })
+    }
+
+    // 날짜가 바뀌었거나 아직 구독하지 못했으면 다시 구독한다.
+    const ensureToday = () => {
+      if (disposed) return
+      const d = todayHyphen()
+      if (d !== dateRef.current) subscribe(d)
+    }
+
+    ensureToday()
+
+    // 자정을 넘겨도 앱 재시작 없이 다음 날 노드로 넘어가도록 주기 점검
+    const timer = setInterval(ensureToday, 60 * 1000)
+
+    // 포그라운드 복귀 시에도 즉시 점검 (절전으로 타이머가 밀렸을 수 있음)
+    let handle
+    CapApp.addListener('appStateChange', ({ isActive }) => { if (isActive) ensureToday() })
+      .then(h => { handle = h })
+      .catch(() => {})
 
     return () => {
-      if (unsubRef.current) {
-        unsubRef.current()
-        unsubRef.current = null
-      }
+      disposed = true
+      clearInterval(timer)
+      handle?.remove()
+      if (unsubRef.current) { unsubRef.current(); unsubRef.current = null }
     }
-  }, []) // 하루에 1번 마운트 — 날짜 변경 시 앱 재시작 전제
+  }, [])
 }

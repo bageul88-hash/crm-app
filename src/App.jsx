@@ -1,7 +1,8 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useApp } from './context/AppContext'
 import { App as CapApp } from '@capacitor/app'
+import { rescheduleAll } from './api/lessonAlarms'
 
 const TELEGRAM_TOKEN  = import.meta.env.VITE_TELEGRAM_TOKEN
 const TELEGRAM_CHAT   = import.meta.env.VITE_TELEGRAM_CHAT_ID
@@ -68,15 +69,24 @@ export default function App() {
     if (currentUser) load()
   }, [currentUser, load])
 
-  // 앱이 포그라운드로 돌아올 때 지사명/원장명 포함 최신 데이터 동기화
+  // 앱이 포그라운드로 돌아올 때 지사명/원장명 포함 최신 데이터 동기화 + 수업예약 알람 전량 재등록
+  const consultsRef = useRef(consults)
+  consultsRef.current = consults
   useEffect(() => {
     if (!currentUser) return
     let handle
     CapApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) silentSync()
+      if (isActive) { silentSync(); rescheduleAll(consultsRef.current) }
     }).then(h => { handle = h }).catch(() => {})
     return () => { handle?.remove() }
   }, [currentUser, silentSync])
+
+  // 상담 목록 로드/변경 시 알람 전량 재등록(고아 정리 포함). 건수 변화에만 반응 + 디바운스.
+  useEffect(() => {
+    if (!currentUser || !consults?.length) return
+    const t = setTimeout(() => rescheduleAll(consults), 1500)
+    return () => clearTimeout(t)
+  }, [currentUser, consults.length])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSmsAttendance = useCallback((studentName, time) => {
     // localStorage 즉시 반영 (AttendancePage가 마운트되지 않아도 보존)
@@ -129,6 +139,23 @@ export default function App() {
 
   useSmsAttendance(handleSmsAttendance)
   useFirebaseAttendanceListener()
+
+  // 자정을 넘기면 화면을 새로 불러온다.
+  // 출석 화면 등은 "앱을 켠 날짜"로 상수를 계산해 두기 때문에,
+  // 앱을 켜둔 채 날짜가 바뀌면 어제 날짜를 계속 보게 된다.
+  useEffect(() => {
+    const startDay = new Date().toDateString()
+    const check = () => {
+      if (new Date().toDateString() === startDay) return
+      const el = document.activeElement
+      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      if (typing) return   // 입력 중이면 다음 점검 때 다시 시도
+      console.log('[날짜변경] 자정 경과 — 화면을 새로 불러옵니다')
+      window.location.reload()
+    }
+    const t = setInterval(check, 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
 
   const handleMmsReceived = useCallback((rawPhone) => {
     const phone = normalizeMmsPhone(rawPhone)
@@ -220,7 +247,9 @@ export default function App() {
 
       <main className="app-main">
         <Routes>
-          <Route path="/" element={<ListPage />} />
+          <Route path="/" element={<ListPage key="main" />} />
+          {/* 예약 하단탭 — 상담목록(ListPage)을 '예약' 필터로 재사용. key 분리로 각 라우트 독립 상태 */}
+          <Route path="/reservations" element={<ListPage key="reservations" initialTab="예약" />} />
           <Route path="/input" element={<InputPage />} />
           <Route path="/input/:id" element={<InputPage />} />
           <Route path="/schedule" element={<SchedulePage />} />

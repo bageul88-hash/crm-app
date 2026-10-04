@@ -4,6 +4,7 @@ import { db } from '../firebase'
 import { readSmsHistory } from '../hooks/useSmsAttendance'
 import SearchInput from '../components/SearchInput'
 import { handleStudentArrival, saveAttendanceToFirebase, buildStudentFolderName, isFullFolderName, requestDriveAttendance, sendArrivalSms } from '../api/firebaseAttendance'
+import { loadMissed } from '../hooks/useFirebaseAttendanceListener'
 import DatePicker from '../components/DatePicker'
 import { useApp } from '../context/AppContext'
 
@@ -91,6 +92,9 @@ export default function AttendancePage() {
   const lockRef = useRef(false)
   const pressTimer = useRef(null)
   const deletedRef = useRef(new Set())   // 삭제 블록리스트(RTDB 미러) — 재import 차단용
+
+  // 오늘 "문자가 안 나간" 출석 목록 — 조용히 지나가지 않도록 화면에 띄운다
+  const [missedSms, setMissedSms] = useState(() => loadMissed(TODAY_HYPHEN))
 
   // 초기 로컬스토리지 로드
   useEffect(() => {
@@ -213,6 +217,15 @@ export default function AttendancePage() {
       })
       .catch(err => console.warn('[출석보정] 실패:', err?.message))
     return () => { cancelled = true }
+  }, [])
+
+  // 미발송 목록 변동 구독 (리스너가 기록/해제할 때마다 갱신)
+  useEffect(() => {
+    const refresh = () => setMissedSms(loadMissed(TODAY_HYPHEN))
+    refresh()
+    window.addEventListener('smsMissedChanged', refresh)
+    const t = setInterval(refresh, 30 * 1000)
+    return () => { window.removeEventListener('smsMissedChanged', refresh); clearInterval(t) }
   }, [])
 
   // 오늘 현황용 빠른 로드 (권한 에러 무시 — SMS 실패 시 기존 저장 이력 사용)
@@ -729,6 +742,21 @@ export default function AttendancePage() {
       {/* ── 출석 현황 탭 ── */}
       {tab === 'attend' && (
         <div>
+          {missedSms.length > 0 && (
+            <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:10, padding:'10px 12px', marginBottom:10 }}>
+              <div style={{ fontSize:13, fontWeight:800, color:'#c2410c', marginBottom:6 }}>
+                ⚠️ 학부모 문자가 안 나간 출석 {missedSms.length}건
+              </div>
+              {missedSms.map(m => (
+                <div key={m.id} style={{ fontSize:12, color:'#9a3412', lineHeight:1.7 }}>
+                  · {m.name} {m.time || ''} — {m.reason}
+                </div>
+              ))}
+              <div style={{ fontSize:11, color:'#9a3412', marginTop:6, opacity:0.85 }}>
+                문자는 자동으로 다시 보내지 않습니다. 필요하면 직접 보내주세요.
+              </div>
+            </div>
+          )}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
             <span style={{ fontSize:13, fontWeight:700, color:'var(--text2)' }}>오늘 등원 {todayList.length}명</span>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
